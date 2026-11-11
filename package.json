@@ -1,6 +1,6 @@
 {
   "name": "gladys-nettleie",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Norwegian grid tariffs (nettleie) for Gladys Assistant: energy part and capacity steps of every grid company from the fri-nettleie data (CC BY 4.0), consumption tax, Enova and VAT by zone, optional spot price with strømstøtte or Norgespris, as a delegated energy contract.",
   "type": "module",

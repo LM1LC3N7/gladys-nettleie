@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-11
+
 ### Added
 
 - The "Nettleie (Norway)" contract template (delegated pricing): the energy
@@ -24,3 +26,6 @@ the notes of the version's GitHub Release.
   fallback.
 - A Test button: company, data date, price now, capacity of the month and a
   comparison with the NVE tariff API.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-nettleie/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-nettleie/releases/tag/v0.1.1
