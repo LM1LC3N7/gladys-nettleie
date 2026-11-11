@@ -33,6 +33,7 @@ import {
   SPOT_DAYS_PER_ASK,
   SPOT_FIRST_DAY,
   SPOT_QUEUE_MAX,
+  SPOT_RETRY_OLD,
   SPOT_RETRY,
   SPOT_TOMORROW_HOUR,
   STORE_RETRY,
@@ -276,7 +277,14 @@ export class NettleieApp {
           delete this.storeReads[name];
           if (this.loaded[name]) return true;
           this.loaded[name] = true;
-          this.merge(name, data);
+          try {
+            this.merge(name, data);
+          } catch (err) {
+            // A file of an unexpected shape never stops the start: its unusable
+            // part is ignored, the file set aside, the next save writes it clean.
+            this.log.warn(`/data ${name}: unexpected content ignored (${err?.name ?? 'Error'})`);
+            this.stores[name].setAside?.().catch?.(() => {});
+          }
           return true;
         },
         (err) => {
@@ -648,6 +656,11 @@ export class NettleieApp {
     }
   }
 
+  yesterday() {
+    const t = oslo(this.now());
+    return oslo(osloMidnight(t.date) - HOUR).date;
+  }
+
   async drainSpot() {
     const gen = this.gen;
     while (this.spotQueue.size > 0 && !this.stale(gen)) {
@@ -659,9 +672,12 @@ export class NettleieApp {
       try {
         answer = await this.request('spot', spotUrl(date, area), { json: true, timeoutMs: 10_000 });
       } catch (err) {
-        this.spotWait.set(key, this.monotonic() + SPOT_RETRY);
-        // 404: the day is not published yet (tomorrow before 13:00).
-        if (err?.status !== 404) {
+        // 404: not published yet (tomorrow before 13:00), or a day the source
+        // will not have: a day before yesterday waits longer.
+        const old = date < this.yesterday();
+        this.spotWait.set(key, this.monotonic() + (old ? SPOT_RETRY_OLD : SPOT_RETRY));
+        // A pause is said once by the status, not once per queued day.
+        if (err?.status !== 404 && err?.code !== 'paused') {
           this.log.warn(`Spot prices ${area} ${date} not read (${err?.message ?? 'error'})`);
         }
         continue;

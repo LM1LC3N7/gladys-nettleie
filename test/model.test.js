@@ -645,6 +645,27 @@ test('spot: a whole local day of Hva koster strømmen.no, hour by hour, kept 62 
     null,
   );
   assert.equal(parseSpotDay({}, '2026-11-10'), null);
+  // A price beyond 100 NOK/kWh is not a price.
+  assert.equal(
+    parseSpotDay(
+      HVA.map((e, i) => (i === 3 ? { ...e, NOK_per_kWh: 150 } : e)),
+      '2026-11-10',
+    ),
+    null,
+  );
+  // Slots of /data that are not numbers in the range of a date: the day is dropped, nothing throws.
+  for (const bad of [
+    ['x', 1, 2],
+    [1e20, 2, 3],
+    [null, null, 1],
+  ]) {
+    assert.deepEqual(
+      checkSpotCache({
+        NO1: { '2026-11-10': { slots: [...day.slice(0, 5), bad, ...day.slice(6)] } },
+      }),
+      {},
+    );
+  }
   // The day the clocks go back has 25 hours, the spring one 23.
   const hours = (date, n, startIso) =>
     Array.from({ length: n }, (_, i) => ({

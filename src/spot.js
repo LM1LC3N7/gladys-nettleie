@@ -20,6 +20,8 @@ import { HOUR, MINUTE, nextDate, oslo, osloMidnight, parseInstant } from './time
 export const SPOT_BASE = 'https://www.hvakosterstrommen.no/api/v1/prices/';
 export const KEEP_DAYS = 62;
 const MAX_SLOTS = 100;
+// Beyond ±8.64e15 ms a Date is invalid.
+const MAX_MS = 8.64e15;
 const SLOT_LENGTHS = [15 * MINUTE, HOUR];
 
 /** The URL of one local day of one area. */
@@ -70,6 +72,17 @@ export function checkSpotCache(raw) {
     if (!days || typeof days !== 'object') continue;
     for (const [date, day] of Object.entries(days)) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Array.isArray(day?.slots)) continue;
+      // Only numbers within the range of a date reach Date (a RangeError
+      // would stop the start): any other slot makes the day unusable.
+      const usable = day.slots.every(
+        (s) =>
+          Array.isArray(s) &&
+          s.length === 3 &&
+          s.every((v) => typeof v === 'number' && Number.isFinite(v)) &&
+          Math.abs(s[0]) < MAX_MS &&
+          Math.abs(s[1]) < MAX_MS,
+      );
+      if (!usable) continue;
       const slots = parseSpotDay(
         day.slots.map((s) =>
           Array.isArray(s)

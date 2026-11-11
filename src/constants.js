@@ -48,6 +48,8 @@ export const STORE_WAIT = 5 * SECOND;
 // background, one at a time. The source has no day before SPOT_FIRST_DAY.
 export const SPOT_TOMORROW_HOUR = 13;
 export const SPOT_RETRY = 15 * MINUTE;
+// A day before yesterday that failed (404: the source may never have it).
+export const SPOT_RETRY_OLD = 6 * HOUR;
 export const SPOT_DAYS_PER_ASK = 32;
 export const SPOT_QUEUE_MAX = 64;
 export const SPOT_FIRST_DAY = '2021-12-01';

@@ -27,6 +27,7 @@ import {
   hvaDay,
   plain,
   priceRequest,
+  settle,
   setup,
 } from './helpers/app.js';
 
@@ -251,7 +252,7 @@ test('spot: never a wait in the pricing; the days missing read in the background
   await env.app.stop();
 });
 
-test('spot not published (404) or partial: not kept, not asked again before 15 minutes', async () => {
+test('spot not published (404) or partial: not kept, not asked again before 6 hours (a past day) or 15 minutes (partial)', async () => {
   const net = createNet({ [SPOT]: () => json({ message: 'not found' }, 404) });
   const env = await setup({ config: { refresh_data: false }, net, contracts: [] });
   await env.app.connected();
@@ -266,7 +267,7 @@ test('spot not published (404) or partial: not kept, not asked again before 15 m
   await env.gladys.fake.energyPrice(req());
   assert.equal(d2(), 1);
   net.routes[SPOT] = () => json(hvaDay('2026-11-02').slice(0, 20));
-  await env.advance(6 * MINUTE);
+  await env.advance(6 * HOUR);
   await env.gladys.fake.energyPrice(req());
   await env.advance(2 * SECOND);
   assert.equal(d2(), 2);
@@ -798,5 +799,104 @@ test('status: the spot source credited when a contract reads spot prices', async
   });
   await env.run();
   assert.match(statusText(env), /Strømpriser levert av Hva koster strømmen\.no\./);
+  await env.app.stop();
+});
+
+test('/data spot file with slots that are not dates: the session starts, the day is ignored', async () => {
+  const day = hvaDay('2026-11-10').map((e) => [
+    Date.parse(e.time_start),
+    Date.parse(e.time_end),
+    1,
+  ]);
+  const stores = memoryStores({
+    spot: {
+      areas: {
+        NO1: {
+          '2026-11-10': { slots: [['x', 1, 2], ...day.slice(1)] },
+          '2026-11-09': { slots: [[1e20, 2, 3]] },
+        },
+      },
+    },
+  });
+  const env = await setup({ config: { refresh_data: false }, stores });
+  await env.run();
+  assert.match(statusText(env), /^1 contract/);
+  assert.equal(env.gladys.fake.discoveredDevices.length, 1);
+  assert.equal(env.app.spot.NO1, undefined);
+  assert.ok(env.pending.size > 0, 'the tick is armed');
+  await env.app.stop();
+});
+
+test('spot queue: at most 64 days waiting, never after tomorrow, nothing kept after stop()', async () => {
+  let release;
+  const net = createNet({ [SPOT]: () => new Promise((resolve) => (release = resolve)) });
+  const env = await setup({ config: { refresh_data: false }, net, contracts: [] });
+  await env.app.connected();
+  for (const [i, area] of ['NO2', 'NO3', 'NO5'].entries()) {
+    const id = [CONTRACT_ID, OTHER_ID, '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'][i];
+    const days = intervalsFrom('2026-10-05T06:00:00.000Z', 31 * 48).filter((_, k) => k % 48 === 0);
+    await env.gladys.fake.energyPrice(
+      priceRequest(days, { inputs: { supply: 'spot', price_area: area }, id }),
+    );
+  }
+  // One read in flight, the queue full at 64 (93 days asked).
+  assert.equal(net.calls.length, 1);
+  assert.equal(env.app.spotQueue.size, 64);
+  // Days after tomorrow are never asked.
+  const later = intervalsFrom('2026-11-13T06:00:00.000Z', 3 * 48).filter((_, k) => k % 48 === 0);
+  env.app.spotQueue.clear();
+  await env.gladys.fake.energyPrice(
+    priceRequest(later, { inputs: { supply: 'spot', price_area: 'NO4' } }),
+  );
+  assert.equal(env.app.spotQueue.size, 0);
+  // stop() while the read hangs: its answer is neither kept nor written.
+  const saves = env.stores.spot.saves;
+  await env.app.stop();
+  release(json(hvaDay('2026-10-05')));
+  await settle();
+  assert.equal(env.app.spot.NO2?.['2026-10-05'], undefined);
+  assert.equal(env.stores.spot.saves, saves);
+});
+
+test('a day the source does not have (404, before yesterday) is asked again after 6 hours, a pause logged once', async () => {
+  const net = createNet({ [SPOT]: () => json({ message: 'not found' }, 404) });
+  const env = await setup({ config: { refresh_data: false }, net, contracts: [] });
+  await env.app.connected();
+  const req = () =>
+    priceRequest(intervalsFrom('2026-11-02T06:00:00.000Z', 1), { inputs: { supply: 'spot' } });
+  const d2 = () => net.calls.filter((c) => c.url.includes('11-02_NO1')).length;
+  await env.gladys.fake.energyPrice(req());
+  await env.advance(SECOND);
+  assert.equal(d2(), 1);
+  await env.advance(5 * HOUR);
+  await env.gladys.fake.energyPrice(req());
+  await env.advance(SECOND);
+  assert.equal(d2(), 1);
+  await env.advance(HOUR);
+  await env.gladys.fake.energyPrice(req());
+  await env.advance(SECOND);
+  assert.equal(d2(), 2);
+  // During a pause: no line per queued day.
+  net.routes[SPOT] = () => json({}, 503);
+  const days = intervalsFrom('2026-10-10T06:00:00.000Z', 10 * 48).filter((_, k) => k % 48 === 0);
+  await env.gladys.fake.energyPrice(priceRequest(days, { inputs: { supply: 'spot' } }));
+  await env.advance(MINUTE);
+  const lines = env.lines.filter((l) => /Spot prices NO1 2026-10/.test(l));
+  assert.ok(lines.length <= 1, lines.join('\n'));
+  await env.app.stop();
+});
+
+test('/data content that throws while read: ignored, the session starts', async () => {
+  const stores = memoryStores();
+  stores.state.load = async () => ({
+    get refreshAt() {
+      throw new Error('broken');
+    },
+  });
+  const env = await setup({ config: { refresh_data: false }, stores });
+  await env.run();
+  assert.match(statusText(env), /^1 contract/);
+  assert.match(env.lines.join('\n'), /\/data state: unexpected content ignored/);
+  assert.ok(env.pending.size > 0);
   await env.app.stop();
 });

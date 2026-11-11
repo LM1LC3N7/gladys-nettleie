@@ -126,7 +126,10 @@ statut donne les choix.
   24 ou 25 heures), 62 jours. La tarification ne les attend jamais : une
   demi-heure dont le prix spot n’est pas encore là reste sans coût tout de
   suite, le jour est lu en arrière-plan et Gladys la tarife à son passage
-  suivant.
+  suivant. Gladys exige un coût pour chaque demi-heure d’une requête : un jour
+  que la source n’a pas laisse sans coût les demi-heures pas encore tarifées
+  de la même période de facturation (Gladys rattrape 31 jours au plus), et le
+  statut nomme le jour. Un tel jour est redemandé toutes les 6 heures.
 - **Règles de la strømstøtte et de Norgespris** : d’après le règlement
   (FOR-2025-09-08-1791) et les pages du gouvernement, vérifiées contre le
   projet Strømkalkulator (MIT). Elles sont écrites dans l’intégration avec

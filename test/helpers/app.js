@@ -9,6 +9,7 @@ import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 import { NettleieApp } from '../../src/app.js';
 import { registerHandlers } from '../../src/handlers.js';
 import { createMemoryStore } from '../../src/store.js';
+import { nextDate, osloMidnight } from '../../src/time.js';
 
 export const SELECTOR = 'nettleie';
 export const SECOND = 1000;
@@ -199,8 +200,9 @@ export function priceRequest(intervals, { inputs, monthBefore = 0, id = CONTRACT
 
 /** A Hva koster strømmen.no answer for a local day of Norway: every hour at `price(i)` NOK/kWh. */
 export function hvaDay(date, price = () => 1) {
-  const start = Date.parse(`${date}T00:00:00+01:00`);
-  return Array.from({ length: 24 }, (_, i) => ({
+  const start = osloMidnight(date);
+  const hours = (osloMidnight(nextDate(date)) - start) / HOUR;
+  return Array.from({ length: hours }, (_, i) => ({
     NOK_per_kWh: price(i),
     EUR_per_kWh: 0,
     EXR: 10,

@@ -424,5 +424,65 @@
     "file": "src/app.js",
     "from": "      if (this.spot[area]?.[date]) continue;\n      let answer;",
     "to": "      let answer;"
+  },
+  {
+    "name": "r2: the pricing awaits the background read",
+    "file": "src/app.js",
+    "from": "            daysOf(intervals.map((i) => Date.parse(i?.starts_at)).filter(Number.isFinite)),\n          );\n",
+    "to": "            daysOf(intervals.map((i) => Date.parse(i?.starts_at)).filter(Number.isFinite)),\n          );\n          await this.spotDraining;\n"
+  },
+  {
+    "name": "r2: a day after tomorrow is asked",
+    "file": "src/app.js",
+    "from": "if (date < SPOT_FIRST_DAY || date > tomorrow) continue;",
+    "to": "if (date < SPOT_FIRST_DAY) continue;"
+  },
+  {
+    "name": "r2: the spot queue unbounded",
+    "file": "src/app.js",
+    "from": "if (this.spotQueue.size >= SPOT_QUEUE_MAX) break;",
+    "to": ""
+  },
+  {
+    "name": "r2: a day read for a stale generation kept",
+    "file": "src/app.js",
+    "from": "      if (this.stale(gen)) return;\n      const slots = answer.data",
+    "to": "      const slots = answer.data"
+  },
+  {
+    "name": "r2: a slot price beyond 100 NOK/kWh accepted",
+    "file": "src/spot.js",
+    "from": " || Math.abs(price) > 100) return null;",
+    "to": ") return null;"
+  },
+  {
+    "name": "r2: NVE compared without Enova",
+    "file": "src/app.js",
+    "from": "const enova = this.catalog.rates()?.enova ?? 0;",
+    "to": "const enova = 0;"
+  },
+  {
+    "name": "spot cache: only numbers in the range of a date",
+    "file": "src/spot.js",
+    "from": "      if (!usable) continue;\n",
+    "to": ""
+  },
+  {
+    "name": "an unexpected /data content never stops the start",
+    "file": "src/app.js",
+    "from": "          try {\n            this.merge(name, data);\n          } catch (err) {",
+    "to": "          {\n            this.merge(name, data);\n          }\n          if (false) {\n            const err = null;"
+  },
+  {
+    "name": "a past day missing waits 6 hours",
+    "file": "src/app.js",
+    "from": "(old ? SPOT_RETRY_OLD : SPOT_RETRY)",
+    "to": "SPOT_RETRY"
+  },
+  {
+    "name": "a pause is not logged per queued day",
+    "file": "src/app.js",
+    "from": "if (err?.status !== 404 && err?.code !== 'paused') {",
+    "to": "if (err?.status !== 404) {"
   }
 ]

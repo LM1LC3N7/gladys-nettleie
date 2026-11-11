@@ -115,7 +115,11 @@ history) asks for the **Tariff name**: the status lists the choices.
   from 1 December 2021; a day is kept only whole (23, 24 or 25 hours), for
   62 days. The pricing never waits for them: a half hour whose spot price is
   not held yet gets no cost at once, the day is read in the background and
-  Gladys prices it at its next run.
+  Gladys prices it at its next run. Gladys needs a cost for every half hour
+  of a request: a day the source does not have leaves the half hours not yet
+  priced of the same billing period without cost (Gladys catches up 31 days at
+  most), and the status names the day. Such a day is asked again every 6
+  hours.
 - **Strømstøtte and Norgespris rules**: from the regulation (FOR-2025-09-08-1791)
   and the government pages, checked against the Strømkalkulator project
   (MIT). They are written in the integration with their dates: after 2026,
