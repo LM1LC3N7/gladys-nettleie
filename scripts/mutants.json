@@ -1,0 +1,284 @@
+[
+  {
+    "name": "the monthly cap splits an interval",
+    "file": "src/pricing.js",
+    "from": "inKwh = Math.min(item.kwh, Math.max(0, cap - used));",
+    "to": "inKwh = item.kwh;"
+  },
+  {
+    "name": "a new local month restarts the cap",
+    "file": "src/pricing.js",
+    "from": "      month = local.month;\n      used = 0;",
+    "to": "      month = local.month;"
+  },
+  {
+    "name": "no strømstøtte for a holiday home",
+    "file": "src/pricing.js",
+    "from": "if (settings.group === 'husholdning') {",
+    "to": "if (true) {"
+  },
+  {
+    "name": "strømstøtte on the hour mean",
+    "file": "src/pricing.js",
+    "from": "const hourly = spotOfHour(spot, settings.area, start);",
+    "to": "const hourly = spotOfInterval(spot, settings.area, start);"
+  },
+  {
+    "name": "strømstøtte only above the threshold",
+    "file": "src/pricing.js",
+    "from": "Math.max(0, hourly - threshold)",
+    "to": "(hourly - threshold)"
+  },
+  {
+    "name": "a negative total counts as zero",
+    "file": "src/pricing.js",
+    "from": "cost: Math.max(0, round6(total)),",
+    "to": "cost: round6(total),"
+  },
+  {
+    "name": "spot beyond the Norgespris cap",
+    "file": "src/pricing.js",
+    "from": "total = item.kwh * p.grid + inKwh * p.inCap + outKwh * p.outCap;",
+    "to": "total = item.kwh * p.grid + item.kwh * p.inCap;"
+  },
+  {
+    "name": "VAT only in the south zone",
+    "file": "src/rates.js",
+    "from": "vat: zone === 'south' ? rates.vat : 0,",
+    "to": "vat: rates.vat,"
+  },
+  {
+    "name": "no consumption tax in the tiltakssone",
+    "file": "src/rates.js",
+    "from": "(zone === 'tiltakssone' ? 0 : consumption)",
+    "to": "consumption"
+  },
+  {
+    "name": "a year the rates do not cover is unknown",
+    "file": "src/rates.js",
+    "from": "date > rates.coversUntil ||",
+    "to": "false ||"
+  },
+  {
+    "name": "no strømstøtte threshold guessed",
+    "file": "src/rates.js",
+    "from": "if (threshold === undefined) throw",
+    "to": "if (false) throw"
+  },
+  {
+    "name": "Norgespris unknown after its end",
+    "file": "src/rates.js",
+    "from": "if (date > NORGESPRIS.until) throw",
+    "to": "if (false) throw"
+  },
+  {
+    "name": "gyldig_til is exclusive",
+    "file": "src/tariffs.js",
+    "from": "(t.to === null || date < t.to)",
+    "to": "(t.to === null || date <= t.to)"
+  },
+  {
+    "name": "several tariffs at once: ask, never pick",
+    "file": "src/tariffs.js",
+    "from": "if (chosen.length === 1) return chosen[0];",
+    "to": "if (chosen.length >= 1) return chosen[0];"
+  },
+  {
+    "name": "the last matching exception wins",
+    "file": "src/tariffs.js",
+    "from": "for (const ex of tariff.exceptions) {",
+    "to": "for (const ex of [...tariff.exceptions].reverse()) {"
+  },
+  {
+    "name": "a working day is not a holiday",
+    "file": "src/tariffs.js",
+    "from": "if (day === 'virkedag' && !weekend && !holiday) return true;",
+    "to": "if (day === 'virkedag' && !weekend) return true;"
+  },
+  {
+    "name": "a threshold included goes to the next step",
+    "file": "src/tariffs.js",
+    "from": "(kw === from && included === true)",
+    "to": "(kw === from)"
+  },
+  {
+    "name": "an unknown threshold side is unknown",
+    "file": "src/tariffs.js",
+    "from": "else if (kw === from && included === null) return null;",
+    "to": "else if (false) return null;"
+  },
+  {
+    "name": "a tariff field out of the format is refused",
+    "file": "src/tariffs.js",
+    "from": "if (!isNumber(raw.pris, -1000, 1000)) fail('unntak.pris');",
+    "to": "if (false) fail('unntak.pris');"
+  },
+  {
+    "name": "the three highest days",
+    "file": "src/capacity.js",
+    "from": ".slice(0, 3);",
+    "to": ".slice(0, 4);"
+  },
+  {
+    "name": "the highest hour of each day",
+    "file": "src/capacity.js",
+    "from": "if (!byDay.has(h.date) || byDay.get(h.date) < h.kwh)",
+    "to": "if (true)"
+  },
+  {
+    "name": "only two months kept",
+    "file": "src/capacity.js",
+    "from": "if (Number(key) < keepFrom) delete record.intervals[key];",
+    "to": "if (false) delete record.intervals[key];"
+  },
+  {
+    "name": "nothing recorded far in the future",
+    "file": "src/capacity.js",
+    "from": "if (start < keepFrom || start > nowMs + HOUR) continue;",
+    "to": "if (start < keepFrom) continue;"
+  },
+  {
+    "name": "a prototype key is not an option",
+    "file": "src/contract.js",
+    "from": "Object.hasOwn(GROUP_OPTIONS, groupKey) ?",
+    "to": "true ?"
+  },
+  {
+    "name": "the markup bounds",
+    "file": "src/contract.js",
+    "from": "markup < -1 || markup > MAX_MARKUP",
+    "to": "false"
+  },
+  {
+    "name": "a day that failed is not asked again before its wait",
+    "file": "src/app.js",
+    "from": "if (wait !== undefined && this.monotonic() < wait) return false;",
+    "to": "if (false) return false;"
+  },
+  {
+    "name": "a paused service is not asked",
+    "file": "src/app.js",
+    "from": "      if (paused) {\n",
+    "to": "      if (false) {\n"
+  },
+  {
+    "name": "the pause doubles",
+    "file": "src/app.js",
+    "from": "const delay = previous ? Math.min(PAUSE_MAX, previous.delay * 2) : PAUSE_MIN;",
+    "to": "const delay = PAUSE_MIN;"
+  },
+  {
+    "name": "requests a second apart",
+    "file": "src/app.js",
+    "from": "if (gap > 0) await this.sleep(gap);",
+    "to": "if (false) await this.sleep(gap);"
+  },
+  {
+    "name": "nothing leaves after stop()",
+    "file": "src/app.js",
+    "from": "if (this.stopped) throw new HttpError('stopped', 'integration stopped');",
+    "to": "if (false) throw new HttpError('stopped', 'integration stopped');"
+  },
+  {
+    "name": "a far refresh due time is not trusted",
+    "file": "src/app.js",
+    "from": "refreshAt <= this.now() + REFRESH_INTERVAL ? refreshAt : 0",
+    "to": "refreshAt"
+  },
+  {
+    "name": "never a save before /data was read",
+    "file": "src/app.js",
+    "from": "if (!this.loaded[name]) return;",
+    "to": "if (false) return;"
+  },
+  {
+    "name": "/data read again on its own timer",
+    "file": "src/app.js",
+    "from": "this.setTimer('store', STORE_RETRY,",
+    "to": "this.setTimer('store', STORE_RETRY * 100,"
+  },
+  {
+    "name": "getConfig retried",
+    "file": "src/app.js",
+    "from": "this.setTimer('config', this.configDelay, () => this.connected());",
+    "to": ""
+  },
+  {
+    "name": "the refresh switch",
+    "file": "src/app.js",
+    "from": "if (!this.config.refresh_data) return;",
+    "to": "if (false) return;"
+  },
+  {
+    "name": "a partial spot day is not kept",
+    "file": "src/app.js",
+    "from": "if (slots.length < 23) continue;",
+    "to": "if (false) continue;"
+  },
+  {
+    "name": "at most 6 spot days per pricing",
+    "file": "src/app.js",
+    "from": "fetches >= SPOT_FETCHES ||",
+    "to": "false ||"
+  },
+  {
+    "name": "NVE asked at most once an hour",
+    "file": "src/app.js",
+    "from": "cached && this.monotonic() - cached.at < HOUR",
+    "to": "false"
+  },
+  {
+    "name": "the capacity fee with VAT",
+    "file": "src/app.js",
+    "from": "step.monthly * (1 + taxesOn(",
+    "to": "step.monthly * (1 + 0 * taxesOn("
+  },
+  {
+    "name": "the consumption recorded before the pricing",
+    "file": "src/app.js",
+    "from": "if (validContractId(id)) this.record(id, intervals);",
+    "to": "if (false) this.record(id, intervals);"
+  },
+  {
+    "name": "a 304 keeps the file",
+    "file": "src/app.js",
+    "from": "if (answer.status === 304) return true;",
+    "to": "if (answer.status === 304) return false;"
+  },
+  {
+    "name": "a refused file keeps the previous one",
+    "file": "src/app.js",
+    "from": "if (!company || company.tariffs.length === 0) {",
+    "to": "if (!company) {"
+  },
+  {
+    "name": "the body bound",
+    "file": "src/http.js",
+    "from": "if (size > maxBytes) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "the Content-Length bound",
+    "file": "src/http.js",
+    "from": "if (Number.isFinite(length) && length > maxBytes) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "our User-Agent",
+    "file": "src/http.js",
+    "from": "headers: { 'User-Agent': USER_AGENT, Accept: accept, ...headers },",
+    "to": "headers: { Accept: accept, ...headers },"
+  },
+  {
+    "name": "a slow /data holds the start 5 s at most",
+    "file": "src/app.js",
+    "from": "resolve(false), STORE_WAIT);",
+    "to": "resolve(false), STORE_WAIT * 1000);"
+  },
+  {
+    "name": "one /data read at a time",
+    "file": "src/app.js",
+    "from": "let read = this.storeReads[name];",
+    "to": "let read;"
+  }
+]

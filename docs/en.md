@@ -1,61 +1,206 @@
-# Demo Devices Template
+# Nettleie (Norway)
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Unofficial integration: it prices your electricity in Gladys with the **grid
+tariff of your Norwegian grid company** (nettleie), the public charges and,
+if you want, the spot price with the **strømstøtte** or **Norgespris**. It is
+not affiliated with any grid company, with NVE, with Nord Pool or with the
+fri-nettleie project.
 
-## What you get
+> This integration has never been tested with a real Gladys contract and a
+> real meter in Norway: the prices are checked against the published tariffs
+> by its tests, not against a real bill. Tell us what you see.
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+## What it does
 
-## Configuration
+- A contract template **"Nettleie (Norway)"** (delegated pricing, Gladys 5.2
+  or later): Gladys sends the consumption of each half hour, the integration
+  answers its cost in NOK, VAT included:
+  - the **energy part** (energiledd) of your company's tariff for that local
+    hour, day type (working day, weekend, public holiday) and month;
+  - the **consumption tax** (forbruksavgift) and the **Enova levy**
+    (1 øre/kWh), and **25 % VAT** in the south zone;
+  - with the **spot** supply: the day-ahead price of your area plus your
+    supplier's markup, minus the **strømstøtte** (90 % of the hourly spot
+    price above 77 øre/kWh without VAT in 2026, 75 øre in 2025, at most
+    5,000 kWh a month, households only);
+  - with the **Norgespris** supply: 40 øre/kWh without VAT plus your markup,
+    within 5,000 kWh a month (1,000 for a holiday home), the spot price
+    beyond (1 October 2025 to 31 December 2026).
+- One device per contract (in **Discovery** once the contract exists): the
+  **price now** (NOK/kWh), the **capacity peak of the month** (kW), the
+  **capacity step** reached (NOK/month, VAT included) and the threshold of
+  the **next step** (kW): enough for a scene that warns before a new step.
+- A **Test** button: the company found, the date of its data, the price now,
+  the capacity of the month, and a comparison of today's tariff with what
+  NVE holds.
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+## The capacity step (kapasitetsledd)
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+Every Norwegian grid company bills a monthly fixed part by **steps of
+power**, most of them from the mean of the three highest hours of the month,
+on three different days. The Gladys pricing engine **cannot bill a step**:
+its "demand" component is a price per kW (a straight line, not steps), and a
+delegated cost is the energy only. So the integration does not hide it in the
+kWh price; instead:
 
-## Actions
+- the contract device **shows** the peak of the month (computed from the
+  half-hour consumption Gladys sends for pricing: kWh of each clock hour, mean
+  of the three highest days) and the step it reaches;
+- the template has an optional **"Capacity step per month"** input, counted by
+  Gladys as a fixed monthly amount: enter the step you expect if you want it
+  in the totals.
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+Steps computed: the common rule (TRE_DØGNMAX_MND) and the highest hour of the
+month (MND_MAX). Companies billing on the five highest weeks of the year or
+on the fuse size (FEM_VEKTET_ÅR, OV_TREFASE) have no computed step: the Test
+button says so. The peak only counts the half hours Gladys has priced: a gap
+in the meter data lowers it.
 
-## Scenes
+## Set up
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+1. Install the integration. Nothing to fill in its configuration.
+2. In **Energy > Contracts**, create a contract on your main meter with the
+   **"Nettleie (Norway)"** template and fill its inputs:
+   - **Grid company**: its name ("Elvia"), its fri-nettleie file name (the
+     list below), its GLN or its organisation number;
+   - **Customer group**: household, or holiday_home (fritidsbolig);
+   - **Tax zone**: south, north (Nordland, Troms: no VAT) or tiltakssone
+     (Finnmark and the Nord-Troms municipalities: no VAT, no consumption
+     tax);
+   - **Electricity supply**: grid_only, spot or norgespris, and the **price
+     area** (NO1 to NO5) for the last two;
+   - **Supplier markup** (påslag, NOK/kWh without VAT), **capacity step** and
+     **other monthly fees** (NOK/month with VAT), all optional.
+3. In **Discovery**, add the contract device if you want its sensors.
+4. Press **Test** in the configuration screen.
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+A wrong input never becomes a default: the half hours get no cost, the
+status names the input, and Gladys asks again at its next run once it is
+fixed. A company with several tariffs at once (one file has them in its
+history) asks for the **Tariff name**: the status lists the choices.
 
-## Dashboard
+## Where the data comes from, and how fresh it is
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+- **Grid tariffs and tax rates: fri-nettleie**
+  (<https://github.com/kraftsystemet/fri-nettleie>), a community collection
+  of the tariffs of every Norwegian grid company, by **Fri nettleie /
+  kraftsystemet**, data under **CC BY 4.0**
+  (<https://creativecommons.org/licenses/by/4.0/>). The integration ships a
+  copy (commit 58a0d20, 10 November 2026) and, once a day, reads again the
+  files of the companies your contracts use (conditional request, nothing
+  sent but the file name; switch off in the configuration). The status and
+  the Test button show the **date of the data** (the "sist_oppdatert" of the
+  company's file). Changes made: the tariffs are checked field by field, the
+  yearly capacity prices are shown per month, taxes and VAT are added.
+- **Comparison: NVE**, the tariffs the companies report to the regulator
+  (<https://nettleietariffer.dataplattform.nve.no>), only by the Test button,
+  at most once per company and hour. Contains data under the Norwegian
+  Licence for Open Government Data (NLOD) made available by NVE
+  (<https://data.norge.no/nlod/>). NVE is sometimes months behind: the prices
+  always follow fri-nettleie.
+- **Spot prices: Nord Pool day-ahead** (only for the spot and Norgespris
+  supplies), from the public data portal of Nord Pool, an unofficial reading
+  (the same as the gladys-nord-pool integration). The portal keeps about six
+  weeks; the integration keeps what it read for 62 days. A half hour whose
+  spot price cannot be read gets no cost until it can.
+- **Strømstøtte and Norgespris rules**: from the regulation (FOR-2025-09-08-1791)
+  and the government pages, checked against the Strømkalkulator project
+  (MIT). They are written in the integration with their dates: after 2026,
+  or for a year whose tax rates fri-nettleie has not published yet, the half
+  hours get **no cost** (never a guessed one) until the data is there.
 
-## Troubleshooting
+## Good to know
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+- All times are Norway's local time (Europe/Oslo). On the night the clocks go
+  back, both 02:00 hours are "hour 2", as the companies count.
+- The strømstøtte is computed hour by hour on the mean of the four quarter
+  prices of the hour; the spot price of a half hour is the mean of its two
+  quarters (Gladys sends half hours).
+- A total below zero (negative spot price) counts as zero: Gladys does not
+  take a credit.
+- The integration sends nothing about you anywhere: it reads public files.
+
+## Grid companies
+
+The input accepts the file name (first column), the name, the GLN or the
+organisation number. Data date of the copy shipped with this version.
+
+| File name                 | Company                               | Organisation number (NVE) | Data of    |
+| ------------------------- | ------------------------------------- | ------------------------- | ---------- |
+| `alut`                    | Alut AS                               | 925336637                 | 2026-03-07 |
+| `area-alle`               | Area Nett AS - Alle områder           | 923993355                 | 2025-12-20 |
+| `area-lega`               | Area Nett AS - Område 3 - Lega        | 923993355                 | 2025-12-20 |
+| `area-luostejok`          | Area Nett AS - Område 2 - Luostejok   | 923993355                 | 2025-12-20 |
+| `area-nettinord`          | Area Nett AS - Område 1- NettiNord    | 923993355                 | 2025-12-20 |
+| `arva`                    | Arva AS                               | 979151950                 | 2024-10-22 |
+| `asker`                   | Asker Nett                            | 917743193                 | 2026-09-30 |
+| `barentsnett`             | Barents Nett AS                       | 971058854                 | 2026-10-08 |
+| `bindalkraftlag`          | Bindal Kraftlag Nett                  | 953181606                 | 2025-10-22 |
+| `bkk`                     | BKK AS                                | 976944801                 | 2025-12-12 |
+| `bomlokraftnett`          | Bømlo Kraftnett AS                    | 923934138                 | 2025-12-20 |
+| `breheim`                 | Breheim Nett                          | 924527994                 | 2025-12-20 |
+| `denett`                  | DE Nett AS                            | 924862602                 | 2025-12-25 |
+| `elinett`                 | Elinett AS                            | 979379455                 | 2026-08-18 |
+| `elmea`                   | Elmea AS Nett                         | 986347801                 | 2025-10-22 |
+| `elvenett`                | Elvenett AS                           | 979497482                 | 2026-08-23 |
+| `elvia`                   | Elvia AS                              | 980489698                 | 2026-06-05 |
+| `enida`                   | Enida AS                              | 918312730                 | 2025-10-22 |
+| `etna`                    | Etna Nett AS                          | 882783022                 | 2026-10-09 |
+| `everket`                 | Everket AS                            | 966731508                 | 2025-09-21 |
+| `fagne`                   | Fagne AS                              | 915635857                 | 2025-10-22 |
+| `fjellnett`               | Fjellnett AS                          | 923354204                 | 2026-08-18 |
+| `foere`                   | Føre AS                               | 925549738                 | 2025-10-22 |
+| `foie`                    | Føie AS                               | 971589752                 | 2026-10-08 |
+| `glitre`                  | Glitre Nett AS                        | 982974011                 | 2026-09-17 |
+| `griug`                   | Griug AS                              | 953681781                 | 2025-12-25 |
+| `haringnett`              | Haringnett AS                         | 923789324                 | 2026-03-07 |
+| `havnett`                 | Havnett AS                            | 924004150                 | 2025-02-24 |
+| `holandogsetskogelverk`   | Høland og Setskog Elverk AS           | 923488960                 | 2026-08-18 |
+| `indrehordalandkraftnett` | Indre Hordaland Kraftnett AS          | 919415096                 | 2026-05-16 |
+| `jaereneverk`             | Jæren Everk AS                        | 824914982                 | 2025-09-01 |
+| `kenett`                  | KE Nett AS                            | 977285712                 | 2025-12-20 |
+| `klive`                   | Klive AS                              | 923436596                 | 2025-10-23 |
+| `kystnett`                | Kystnett AS                           | 923152601                 | 2026-09-21 |
+| `lede`                    | Lede AS                               | 979422679                 | 2026-04-15 |
+| `linea`                   | Linea AS                              | 917424799                 | 2025-11-12 |
+| `linja`                   | Linja AS                              | 912631532                 | 2026-06-19 |
+| `linja-nord`              | Linja AS - Nord (Mørenett) (old file) | -                         | 2025-11-22 |
+| `linja-sor`               | Linja AS - Sør (old file)             | -                         | 2025-11-22 |
+| `lnett`                   | Lnett AS                              | 980038408                 | 2025-12-08 |
+| `lucerna`                 | Lucerna AS                            | 982897327                 | 2026-10-09 |
+| `lysna`                   | Lysna AS                              | 923833706                 | 2026-08-18 |
+| `mellom`                  | Mellom AS                             | 925668389                 | 2026-08-29 |
+| `meloy`                   | Meløy Nett AS                         | 919173122                 | 2025-12-20 |
+| `midtnett`                | Midtnett AS                           | 917856222                 | 2026-09-21 |
+| `mostraum`                | Mostraum Nett AS                      | 933584801                 | 2026-11-09 |
+| `netera`                  | Netera AS                             | 924330678                 | 2026-03-07 |
+| `nettselskapet`           | Nettselskapet AS                      | 921688679                 | 2026-05-25 |
+| `noranett`                | Noranett AS                           | 985411131                 | 2025-11-22 |
+| `noranett-andoy`          | Noranett Andøy AS                     | 921680554                 | 2025-12-20 |
+| `noranett-hadsel`         | Noranett Hadsel AS                    | 917983550                 | 2025-12-20 |
+| `nordvest`                | Nordvest Nett AS                      | 980824586                 | 2026-06-20 |
+| `norefjell`               | Norefjell Nett AS                     | 824701482                 | 2026-08-18 |
+| `norgesnett`              | Norgesnett AS (old file)              | -                         | 2026-10-09 |
+| `rakkestadenergi`         | Rakkestad Energi AS Nett (old file)   | -                         | 2025-07-04 |
+| `rknett`                  | RK Nett AS                            | 925017809                 | 2026-09-13 |
+| `rnett`                   | R-Nett AS                             | 925067911                 | 2026-05-30 |
+| `romsdalsnett`            | Romsdalsnett AS                       | 926377841                 | 2026-10-08 |
+| `snett`                   | S-NETT AS                             | 923819177                 | 2025-09-19 |
+| `soraurdalenergi`         | Sør Aurdal Energi AS Nett             | 997712099                 | 2026-08-23 |
+| `stannum`                 | Stannum AS                            | 924940379                 | 2025-10-22 |
+| `stram`                   | Stram AS                              | 914385261                 | 2024-12-10 |
+| `straumen`                | Straumen Nett AS                      | 925354813                 | 2024-12-28 |
+| `straumnett`              | Straumnett AS                         | 922694435                 | 2026-04-15 |
+| `sygnir`                  | Sygnir AS                             | 924619260                 | 2026-10-08 |
+| `tendranett`              | Tendranett AS                         | 918999361                 | 2025-12-20 |
+| `tensio-tn`               | Tensio TN AS                          | 988807648                 | 2026-06-19 |
+| `tensio-ts`               | Tensio TS AS                          | 978631029                 | 2026-06-19 |
+| `tinfos`                  | Tinfos AS Nett                        | 916763476                 | 2024-11-24 |
+| `tnett`                   | Tnett AS                              | 925803375                 | 2026-08-23 |
+| `uvdal`                   | Uvdal Kraftforsyning                  | 967670170                 | 2025-12-20 |
+| `vang`                    | Vang Energiverk AS                    | 824368082                 | 2024-11-09 |
+| `vestall`                 | Vestall AS                            | 968168134                 | 2025-12-20 |
+| `vestmar`                 | Vestmar Nett AS                       | 979399901                 | 2025-12-20 |
+| `vevig`                   | Vevig AS                              | 916319908                 | 2025-11-12 |
+| `viermie`                 | Viermie AS                            | 919884452                 | 2025-12-30 |
+| `vissi`                   | Vissi AS                              | 921683057                 | 2024-11-06 |

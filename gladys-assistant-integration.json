@@ -1,177 +1,237 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Nettleie (Norway)",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Norwegian grid tariffs (nettleie) by grid company, capacity steps, strømstøtte and Norgespris.",
+    "fr": "Tarifs réseau norvégiens (nettleie) : gestionnaires, paliers de puissance, strømstøtte, Norgespris."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
-  "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-nettleie:0.1.0",
+  "gladys_version": ">=5.2.0",
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-nettleie/main/cover.png",
+  "categories": ["energy"],
+  "transports": ["cloud"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Norwegian grid tariffs",
+        "fr": "Tarifs réseau norvégiens"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "This integration prices your electricity with the grid tariff of your company: create a contract with the \"Nettleie (Norway)\" template in Energy > Contracts and enter your grid company there. Tariffs: fri-nettleie (kraftsystemet, CC BY 4.0), shipped with the integration and read again once a day from GitHub. Spot prices (only for the \"spot\" and \"Norgespris\" supplies): Nord Pool day-ahead, unofficial reading. The capacity step (kapasitetsledd) is shown by the contract device, not added to the costs: see the documentation.",
+        "fr": "Cette intégration tarifie votre électricité avec le tarif réseau de votre gestionnaire : créez un contrat avec le modèle « Nettleie (Norvège) » dans Énergie > Contrats et indiquez-y votre gestionnaire. Tarifs : fri-nettleie (kraftsystemet, CC BY 4.0), livrés avec l’intégration et relus une fois par jour sur GitHub. Prix spot (seulement pour les fournitures « spot » et « Norgespris ») : day-ahead Nord Pool, lecture non officielle. Le palier de puissance (kapasitetsledd) est affiché par l’appareil du contrat, pas ajouté aux coûts : voir la documentation."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/kraftsystemet/fri-nettleie",
+          "label": {
+            "en": "fri-nettleie (data, CC BY 4.0)",
+            "fr": "fri-nettleie (données, CC BY 4.0)"
+          }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-nettleie/blob/main/docs/en.md",
+          "label": {
+            "en": "Documentation",
+            "fr": "Documentation"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "refresh_data",
+      "type": "boolean",
+      "default": true,
+      "label": {
+        "en": "Read the tariffs again every day",
+        "fr": "Relire les tarifs chaque jour"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
-    },
-    {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
       "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
-      "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
-      },
-      "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+        "en": "Once a day, the files of the grid companies your contracts use (and the tax rates) are read again from the fri-nettleie repository on GitHub. Off: only the data shipped with this version.",
+        "fr": "Une fois par jour, les fichiers des gestionnaires utilisés par vos contrats (et les taux de taxes) sont relus depuis le dépôt fri-nettleie sur GitHub. Désactivé : seulement les données livrées avec cette version."
+      }
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
+      "key": "test",
+      "timeout_seconds": 60,
+      "label": {
+        "en": "Test",
+        "fr": "Tester"
+      },
+      "description": {
+        "en": "Shows, for each contract, the company found, the date of its data, the price now and the capacity of the month, and compares today's tariff with what NVE holds (one NVE request per company and hour at most).",
+        "fr": "Affiche, pour chaque contrat, le gestionnaire trouvé, la date de ses données, le prix actuel et la puissance du mois, et compare le tarif du jour avec celui que détient NVE (au plus une requête NVE par gestionnaire et par heure)."
+      }
     }
   ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
-      "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
-      },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
+  "energy_contracts": {
+    "templates": [
+      {
+        "key": "nettleie-no",
+        "name": {
+          "en": "Nettleie (Norway): grid tariff of your company",
+          "fr": "Nettleie (Norvège) : tarif réseau de votre gestionnaire"
         },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
+        "description": {
+          "en": "Energy part of the grid tariff of your company (fri-nettleie data, CC BY 4.0) with the consumption tax, the Enova levy and VAT by zone; optionally the spot price with the strømstøtte, or Norgespris. Priced by the integration. The capacity step is not computed by Gladys: enter it below if you want it counted.",
+          "fr": "Part énergie du tarif réseau de votre gestionnaire (données fri-nettleie, CC BY 4.0) avec la taxe de consommation, la taxe Enova et la TVA selon la zone ; en option le prix spot avec la strømstøtte, ou Norgespris. Tarifé par l’intégration. Le palier de puissance n’est pas calculé par Gladys : saisissez-le ci-dessous pour le compter."
+        },
+        "country": "NO",
+        "currency": "NOK",
+        "timezone": "Europe/Oslo",
+        "pricing_mode": "delegated",
+        "version": "2026-11-11",
+        "inputs": [
+          {
+            "key": "grid_company",
+            "type": "string",
+            "required": true,
+            "label": {
+              "en": "Grid company (nettselskap)",
+              "fr": "Gestionnaire de réseau (nettselskap)"
+            },
+            "description": {
+              "en": "Its name (\"Elvia\"), its fri-nettleie file name (\"tensio-tn\"), its GLN (13 digits) or its organisation number (9 digits). The list is in the documentation.",
+              "fr": "Son nom (« Elvia »), son nom de fichier fri-nettleie (« tensio-tn »), son GLN (13 caractères) ou son numéro d’organisation (9 caractères). La liste est dans la documentation."
+            }
+          },
+          {
+            "key": "customer_group",
+            "type": "select",
+            "options": ["household", "holiday_home"],
+            "default": "household",
+            "label": {
+              "en": "Customer group",
+              "fr": "Groupe de clients"
+            },
+            "description": {
+              "en": "household (bolig), or holiday_home (fritidsbolig: no strømstøtte, Norgespris capped at 1,000 kWh a month). A holiday home that is a permanent residence counts as household.",
+              "fr": "household (logement), ou holiday_home (résidence secondaire : pas de strømstøtte, Norgespris limité à 1 000 kWh par mois). Une résidence secondaire habitée à l’année compte comme household."
+            }
+          },
+          {
+            "key": "tax_zone",
+            "type": "select",
+            "options": ["south", "north", "tiltakssone"],
+            "default": "south",
+            "label": {
+              "en": "Tax zone",
+              "fr": "Zone fiscale"
+            },
+            "description": {
+              "en": "south: consumption tax and 25 % VAT. north (Nordland, Troms): consumption tax, no VAT. tiltakssone (Finnmark and the Nord-Troms municipalities): neither.",
+              "fr": "south : taxe de consommation et TVA 25 %. north (Nordland, Troms) : taxe de consommation, sans TVA. tiltakssone (Finnmark et communes du Nord-Troms) : ni l’une ni l’autre."
+            }
+          },
+          {
+            "key": "supply",
+            "type": "select",
+            "options": ["grid_only", "spot", "norgespris"],
+            "default": "grid_only",
+            "label": {
+              "en": "Electricity supply",
+              "fr": "Fourniture d’électricité"
+            },
+            "description": {
+              "en": "grid_only: the grid tariff alone. spot: plus the spot price of the area and the markup below, minus the strømstøtte (households). norgespris: plus Norgespris (40 øre/kWh without VAT, within its monthly cap, the spot price beyond) and the markup.",
+              "fr": "grid_only : le tarif réseau seul. spot : plus le prix spot de la zone et la marge ci-dessous, moins la strømstøtte (logements). norgespris : plus Norgespris (40 øre/kWh hors TVA, dans sa limite mensuelle, le prix spot au-delà) et la marge."
+            }
+          },
+          {
+            "key": "price_area",
+            "type": "select",
+            "options": ["NO1", "NO2", "NO3", "NO4", "NO5"],
+            "default": "NO1",
+            "label": {
+              "en": "Price area",
+              "fr": "Zone de prix"
+            },
+            "description": {
+              "en": "The spot price area of your address (spot and Norgespris supplies only).",
+              "fr": "La zone de prix spot de votre adresse (fournitures spot et Norgespris seulement)."
+            }
+          },
+          {
+            "key": "supplier_markup",
+            "type": "number",
+            "unit": "NOK/kWh",
+            "default": 0,
+            "label": {
+              "en": "Supplier markup per kWh, without VAT",
+              "fr": "Marge du fournisseur par kWh, hors TVA"
+            },
+            "description": {
+              "en": "Added to the spot price or to Norgespris (påslag). Between -1 and 5.",
+              "fr": "Ajoutée au prix spot ou à Norgespris (påslag). Entre -1 et 5."
+            }
+          },
+          {
+            "key": "tariff_name",
+            "type": "string",
+            "required": false,
+            "label": {
+              "en": "Tariff name (only if asked)",
+              "fr": "Nom du tarif (seulement si demandé)"
+            },
+            "description": {
+              "en": "Only for a company with several tariffs at once: the status names the choices.",
+              "fr": "Seulement pour un gestionnaire qui a plusieurs tarifs à la fois : le statut indique les choix."
+            }
+          },
+          {
+            "key": "capacity_fee",
+            "type": "number",
+            "unit": "NOK/month",
+            "default": 0,
+            "label": {
+              "en": "Capacity step per month, VAT included",
+              "fr": "Palier de puissance par mois, TVA comprise"
+            },
+            "description": {
+              "en": "Optional, counted as a fixed monthly amount: the step you expect (the contract device shows the step reached this month).",
+              "fr": "Facultatif, compté comme un montant fixe mensuel : le palier que vous prévoyez (l’appareil du contrat affiche le palier atteint ce mois-ci)."
+            }
+          },
+          {
+            "key": "monthly_fees",
+            "type": "number",
+            "unit": "NOK/month",
+            "default": 0,
+            "label": {
+              "en": "Other monthly fees, VAT included",
+              "fr": "Autres frais mensuels, TVA comprise"
+            },
+            "description": {
+              "en": "Optional: the supplier subscription (fastbeløp), for example.",
+              "fr": "Facultatif : l’abonnement du fournisseur (fastbeløp), par exemple."
+            }
+          }
+        ],
+        "tariff": {
+          "tariff_version": 1,
+          "components": [
+            {
+              "key": "capacity",
+              "kind": "fixed",
+              "label": "Kapasitetsledd",
+              "amount": "{{input:capacity_fee}}",
+              "per": "month"
+            },
+            {
+              "key": "monthly_fees",
+              "kind": "fixed",
+              "label": "Monthly fees",
+              "amount": "{{input:monthly_fees}}",
+              "per": "month"
+            }
           ]
         }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
-    }
-  ]
+      }
+    ]
+  }
 }
