@@ -37,7 +37,7 @@ src/capacity.js       hourly peaks from the priced intervals (pure)
 src/catalog.js        snapshot + files read again; company from an input
 src/contract.js       template key and inputs (pure)
 src/time.js           Europe/Oslo local time (pure); src/holidays.js
-src/spot.js           Nord Pool day-ahead parser and cache (pure)
+src/spot.js           Hva koster strømmen.no hourly prices: parser, cache (pure)
 src/nve.js            NVE tariff API, Test button comparison (pure)
 src/http.js           the only network access (User-Agent, bounds, deadline)
 src/store.js          /data files (state, spot, capacity)
@@ -46,6 +46,10 @@ src/snapshot/         fri-nettleie snapshot (scripts/snapshot.mjs)
 
 ## Rules
 
+- **The pricing never waits for the network**: it answers from what is held;
+  a missing spot day is queued and read in the background.
+- **The tax rates path** (`RATES_PATH`) is a file of fri-nettleie's LLM
+  collection guide: check it still exists at each data update.
 - **Never guess a price.** An unknown tariff, tax rate, scheme date or spot
   price throws: the core gives the interval no cost and asks again. Never a
   zero, never the last rate carried on.

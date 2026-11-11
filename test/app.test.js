@@ -24,7 +24,7 @@ import {
   intervalsFrom,
   json,
   memoryStores,
-  nordPoolDay,
+  hvaDay,
   plain,
   priceRequest,
   setup,
@@ -33,7 +33,7 @@ import {
 const RAW = 'https://raw.githubusercontent.com/kraftsystemet/fri-nettleie/main/';
 const ELVIA = `${RAW}tariffer/elvia.yml`;
 const RATES = `${RAW}docs/llm-v2-innsamling-skill/skills/samle-tariff/references/satser.yml`;
-const NP = 'https://dataportal-api.nordpoolgroup.com/';
+const SPOT = 'https://www.hvakosterstrommen.no/';
 const NVE = 'https://nettleietariffer.dataplattform.nve.no/';
 const snapshot = loadSnapshot();
 const close = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
@@ -203,85 +203,102 @@ test('a wrong company: no cost (failure ack), the problem in the status, cleared
   await env.app.stop();
 });
 
-test('spot: the day is read once from Nord Pool inside the pricing, with our User-Agent', async () => {
-  const net = createNet({ [NP]: () => json(nordPoolDay('2026-11-02', ['NO1'], () => 1000)) });
-  const env = await setup({
-    config: { refresh_data: false },
-    net,
-    contracts: [contract({ supply: 'spot', customer_group: 'holiday_home' })],
+test('spot: never a wait in the pricing; the days missing read in the background, our User-Agent', async () => {
+  let release;
+  const net = createNet({
+    [SPOT]: (url) =>
+      new Promise((resolve) => {
+        release = () =>
+          resolve(
+            json(
+              hvaDay(
+                url
+                  .match(/(\d{4})\/(\d{2})-(\d{2})/)
+                  .slice(1)
+                  .join('-'),
+                () => 1,
+              ),
+            ),
+          );
+      }),
   });
+  const env = await setup({ config: { refresh_data: false }, net, contracts: [] });
   await env.app.connected();
-  const day = () => net.calls.filter((c) => c.url.includes('date=2026-11-02')).length;
   const inputs = { supply: 'spot', customer_group: 'holiday_home' };
-  const p = env.gladys.fake.energyPrice(
-    priceRequest(intervalsFrom('2026-11-02T06:00:00.000Z', 2), { inputs }),
-  );
-  await env.advance(5 * SECOND);
-  const ack = await p;
-  assert.equal(ack.success, true, ack.error);
-  close(ack.data.costs[0].cost, (28.99 + 8.13) * 0.0125 + 1.25);
-  assert.equal(day(), 1);
-  const call = net.calls.find((c) => c.url.startsWith(NP) && c.url.includes('2026-11-02'));
-  assert.match(call.url, /deliveryArea=NO1&currency=NOK/);
+  const req = () => priceRequest(intervalsFrom('2026-11-02T06:00:00.000Z', 2), { inputs });
+  // The pricing answers at once (the clock does not move), without the spot price.
+  const first = await env.gladys.fake.energyPrice(req());
+  assert.equal(first.success, false);
+  assert.match(first.error, /no NO1 spot price/);
+  const call = net.calls.find((c) => c.url.startsWith(SPOT));
+  assert.equal(call.url, `${SPOT}api/v1/prices/2026/11-02_NO1.json`);
   assert.equal(call.headers['User-Agent'], USER_AGENT);
   assert.match(
     USER_AGENT,
     /^gladys-nettleie\/0\.1\.0 \(\+https:\/\/github\.com\/LM1LC3N7\/gladys-nettleie\)$/,
   );
-  // Read once: the next request of the same day asks nothing.
-  const again = await env.gladys.fake.energyPrice(
-    priceRequest(intervalsFrom('2026-11-02T08:00:00.000Z', 2), { inputs }),
-  );
-  assert.equal(again.success, true);
-  assert.equal(day(), 1);
+  // Asked again while the read hangs: still at once, no second request.
+  const second = await env.gladys.fake.energyPrice(req());
+  assert.equal(second.success, false);
+  assert.equal(net.count(SPOT), 1);
+  release();
+  await env.advance(SECOND);
+  const ack = await env.gladys.fake.energyPrice(req());
+  assert.equal(ack.success, true, ack.error);
+  close(ack.data.costs[0].cost, (28.99 + 8.13) * 0.0125 + 1.25);
+  assert.equal(net.calls.filter((c) => c.url.includes('11-02_NO1')).length, 1);
   assert.ok(env.stores.spot.data.areas.NO1['2026-11-02']);
   await env.app.stop();
 });
 
-test('spot not published: no cost, the day not asked again before 15 minutes', async () => {
-  const net = createNet({ [NP]: () => new Response(null, { status: 204 }) });
+test('spot not published (404) or partial: not kept, not asked again before 15 minutes', async () => {
+  const net = createNet({ [SPOT]: () => json({ message: 'not found' }, 404) });
   const env = await setup({ config: { refresh_data: false }, net, contracts: [] });
   await env.app.connected();
-  const d2 = () => net.calls.filter((c) => c.url.includes('date=2026-11-02')).length;
   const inputs = { supply: 'spot' };
+  const d2 = () => net.calls.filter((c) => c.url.includes('11-02_NO1')).length;
   const req = () => priceRequest(intervalsFrom('2026-11-02T06:00:00.000Z', 1), { inputs });
-  const first = await env.gladys.fake.energyPrice(req());
-  assert.equal(first.success, false);
-  assert.match(first.error, /no NO1 spot price/);
+  assert.equal((await env.gladys.fake.energyPrice(req())).success, false);
+  await env.advance(SECOND);
   assert.equal(d2(), 1);
   await env.gladys.fake.energyPrice(req());
   await env.advance(10 * MINUTE);
   await env.gladys.fake.energyPrice(req());
   assert.equal(d2(), 1);
+  net.routes[SPOT] = () => json(hvaDay('2026-11-02').slice(0, 20));
   await env.advance(6 * MINUTE);
-  const p = env.gladys.fake.energyPrice(req());
+  await env.gladys.fake.energyPrice(req());
   await env.advance(2 * SECOND);
-  await p;
   assert.equal(d2(), 2);
+  assert.equal(env.app.spot.NO1?.['2026-11-02'], undefined);
+  assert.match(env.lines.join('\n'), /NO1 2026-11-02: not a whole day, not kept/);
   await env.app.stop();
 });
 
-test('a 429 of Nord Pool pauses it (Retry-After), kept in /data, nothing asked during the pause', async () => {
-  const net = createNet({ [NP]: () => json({}, 429, { 'retry-after': '7200' }) });
+test('a 429 of the spot source pauses it (Retry-After), kept in /data, nothing asked during the pause', async () => {
+  const net = createNet({ [SPOT]: () => json({}, 429, { 'retry-after': '7200' }) });
   const stores = memoryStores();
   const env = await setup({ config: { refresh_data: false }, net, stores, contracts: [] });
   await env.app.connected();
   const inputs = { supply: 'spot' };
-  const ack = await env.gladys.fake.energyPrice(
+  await env.gladys.fake.energyPrice(
     priceRequest(intervalsFrom('2026-11-02T06:00:00.000Z', 1), { inputs }),
   );
-  assert.equal(ack.success, false);
-  assert.equal(net.count(NP), 1);
-  const pause = stores.state.data.pauses.nordpool;
-  assert.equal(pause.until, NOW + 2 * HOUR);
+  await env.advance(SECOND);
+  assert.equal(net.count(SPOT), 1);
+  const pause = stores.state.data.pauses.spot;
+  assert.ok(Math.abs(pause.until - (NOW + 2 * HOUR)) < 2 * SECOND);
   assert.equal(pause.status, 429);
   await env.advance(20 * MINUTE);
   await env.gladys.fake.energyPrice(
     priceRequest(intervalsFrom('2026-11-03T06:00:00.000Z', 1), { inputs }),
   );
-  assert.equal(net.count(NP), 1);
-  assert.match(statusText(env), /Nord Pool asks to wait \(HTTP 429\): paused until 10:20 UTC/);
-  // A restart keeps the pause.
+  await env.advance(SECOND);
+  assert.equal(net.count(SPOT), 1);
+  assert.match(
+    statusText(env),
+    /Hva koster strømmen\.no asks to wait \(HTTP 429\): paused until 10:20 UTC/,
+  );
   await env.app.stop();
   const env2 = await setup({
     config: { refresh_data: false },
@@ -294,12 +311,13 @@ test('a 429 of Nord Pool pauses it (Retry-After), kept in /data, nothing asked d
   await env2.gladys.fake.energyPrice(
     priceRequest(intervalsFrom('2026-11-04T06:00:00.000Z', 1), { inputs }),
   );
-  assert.equal(net.count(NP), 1);
+  await env2.advance(SECOND);
+  assert.equal(net.count(SPOT), 1);
   await env2.app.stop();
 });
 
 test('current price: from what is held, never a request (Gladys waits 5 s)', async () => {
-  const net = createNet({ [NP]: () => json(nordPoolDay('2026-11-11')) });
+  const net = createNet({ [SPOT]: () => json(hvaDay('2026-11-11')) });
   const env = await setup({ config: { refresh_data: false }, net, contracts: [] });
   await env.app.connected();
   const req = (inputs) => ({
@@ -340,7 +358,15 @@ test('the price state every quarter of an hour; stop leaves no timer', async () 
 
 test('spot contracts: today read at the start, tomorrow from 13:00, each once', async () => {
   const net = createNet({
-    [NP]: (url) => json(nordPoolDay(new URL(url).searchParams.get('date'))),
+    [SPOT]: (url) =>
+      json(
+        hvaDay(
+          url
+            .match(/(\d{4})\/(\d{2})-(\d{2})/)
+            .slice(1)
+            .join('-'),
+        ),
+      ),
   });
   const env = await setup({
     config: { refresh_data: false },
@@ -348,22 +374,19 @@ test('spot contracts: today read at the start, tomorrow from 13:00, each once', 
     contracts: [contract({ supply: 'spot' })],
   });
   await env.run(5 * SECOND);
+  const days = () => net.calls.map((c) => c.url.slice(-17));
   assert.deepEqual(
-    net.calls.map((c) => new URL(c.url).searchParams.get('date')),
-    ['2026-11-11'],
+    days(),
+    ['11-11_NO1.json'].map((d) => `2026/${d}`.slice(-17)),
   );
   await env.advance(4 * HOUR); // 13:20 local
-  assert.deepEqual(
-    net.calls.map((c) => new URL(c.url).searchParams.get('date')),
-    ['2026-11-11', '2026-11-12'],
-  );
+  assert.equal(net.calls.length, 2);
+  assert.match(net.calls[1].url, /2026\/11-12_NO1\.json$/);
   await env.advance(3 * HOUR);
   assert.equal(net.calls.length, 2);
   assert.ok(Number.isFinite(env.last(F('price'))));
   await env.app.stop();
 });
-
-// --- daily refresh of fri-nettleie ------------------------------------------------------
 
 test('refresh: the rates and the companies used, once a day, conditional, our User-Agent', async () => {
   const net = netWith();
@@ -547,7 +570,7 @@ test('Test: the company, the price, the capacity, NVE compared (one request an h
     ]) {
       rows.push({
         time: h,
-        energileddEks: day ? 28.99 : 16.99,
+        energileddEks: day ? 29.99 : 17.99,
         effekttrinnFraKw: from,
         fastleddEks: yearly / 12,
       });
@@ -575,12 +598,12 @@ test('Test: the company, the price, the capacity, NVE compared (one request an h
   await env.gladys.fake.action('test');
   assert.equal(net.count(NVE), 1);
   await env.advance(HOUR + MINUTE);
-  rows[7].energileddEks = 21.99;
-  rows.filter((r) => r.time === 7).forEach((r) => (r.energileddEks = 21.99));
+  rows[7].energileddEks = 22.99;
+  rows.filter((r) => r.time === 7).forEach((r) => (r.energileddEks = 22.99));
   const diff = await env.gladys.fake.action('test');
   assert.match(
     diff.data.message.en,
-    /NVE differs today \(7h: 28\.99 \/ 21\.99 øre\); the prices use fri-nettleie\./,
+    /NVE differs today \(7h: 29\.99 \/ 22\.99 øre\); the prices use fri-nettleie\./,
   );
   assert.equal(net.count(NVE), 2);
   net.routes[NVE] = () => json({}, 500);
@@ -640,25 +663,140 @@ test('a refresh due time far in the future (clock changed) is not trusted: read 
   await env.app.stop();
 });
 
-test('spot: a partial day is not kept; one pricing reads at most 6 days', async () => {
-  const half = nordPoolDay('2026-11-02');
-  half.multiAreaEntries = half.multiAreaEntries.slice(0, 10);
-  const net = createNet({ [NP]: () => json(half) });
+test('spot: one pricing queues at most a month of days, read one at a time', async () => {
+  const net = createNet({
+    [SPOT]: (url) =>
+      json(
+        hvaDay(
+          url
+            .match(/(\d{4})\/(\d{2})-(\d{2})/)
+            .slice(1)
+            .join('-'),
+        ),
+      ),
+  });
   const env = await setup({ config: { refresh_data: false }, net, contracts: [] });
   await env.app.connected();
-  const inputs = { supply: 'spot' };
-  const ack = await env.gladys.fake.energyPrice(
-    priceRequest(intervalsFrom('2026-11-02T06:00:00.000Z', 1), { inputs }),
+  const inputs = { supply: 'spot', customer_group: 'holiday_home' };
+  const days = intervalsFrom('2026-10-01T06:00:00.000Z', 40 * 48).filter((_, i) => i % 48 === 0);
+  const first = await env.gladys.fake.energyPrice(priceRequest(days, { inputs }));
+  assert.equal(first.success, false);
+  await env.advance(MINUTE);
+  const october = net.calls.filter((c) => !c.url.includes('11-11_NO1')).length;
+  assert.equal(october, 32);
+  await env.app.stop();
+});
+
+test('refresh: the due time written before the requests survives a stop during a hanging read', async () => {
+  const stores = memoryStores();
+  const net = netWith({ [RATES]: () => new Promise(() => {}) });
+  const env = await setup({ net, stores });
+  await env.run(5 * SECOND);
+  assert.equal(net.count(RATES), 1);
+  await env.app.stop();
+  const env2 = await setup({ net, stores, start: NOW + 30 * MINUTE });
+  await env2.run(5 * SECOND);
+  assert.equal(net.count(RATES), 1, 'not read again before an hour');
+  await env2.advance(31 * MINUTE);
+  assert.equal(net.count(RATES), 2);
+  await env2.app.stop();
+});
+
+test('refresh: no read while its due time cannot be written to /data', async () => {
+  const stores = memoryStores();
+  stores.state.unreadable = true;
+  const net = netWith();
+  const env = await setup({ net, stores });
+  await env.run(5 * SECOND);
+  assert.equal(net.calls.length, 0);
+  await env.app.stop();
+  const stores2 = memoryStores();
+  stores2.state.failSave = true;
+  const env2 = await setup({ net, stores: stores2 });
+  await env2.run(5 * SECOND);
+  assert.equal(net.calls.length, 0);
+  await env2.app.stop();
+});
+
+test('a pause in /data longer than 6 hours is not trusted', async () => {
+  const net = netWith();
+  const stores = memoryStores({
+    state: { pauses: { github: { until: NOW + 7 * HOUR, delay: HOUR, status: 503 } } },
+  });
+  const env = await setup({ net, stores });
+  await env.run(5 * SECOND);
+  assert.equal(net.count(RATES), 1);
+  await env.app.stop();
+  const stores2 = memoryStores({
+    state: { pauses: { github: { until: NOW + 5 * HOUR, delay: HOUR, status: 503 } } },
+  });
+  const env2 = await setup({ net, stores: stores2 });
+  await env2.run(5 * SECOND);
+  assert.equal(net.count(RATES), 1, 'a pause within the bound is kept');
+  await env2.app.stop();
+});
+
+test('refresh: a company file with a YAML alias is refused as not YAML', async () => {
+  const doc = structuredClone(snapshot.companies.elvia.doc);
+  const last = doc.tariffer[doc.tariffer.length - 1];
+  last.energiledd.unntak[0].pris = 30;
+  const yaml = `---\n${stringify(doc)}`.replace(
+    'netteier: Elvia AS',
+    'netteier: &name Elvia AS\nnavn_kopi: *name',
   );
-  assert.equal(ack.success, false);
-  assert.equal(env.app.spot.NO1?.['2026-11-02'], undefined);
-  // Eight days to read: six in this request, the rest at the next run.
-  net.routes[NP] = (url) => json(nordPoolDay(new URL(url).searchParams.get('date')));
-  const days = intervalsFrom('2026-10-20T06:00:00.000Z', 8 * 48).filter((_, i) => i % 48 === 0);
-  const p = env.gladys.fake.energyPrice(priceRequest(days, { inputs }));
-  await env.advance(20 * SECOND);
-  const many = await p;
-  assert.equal(many.success, false);
-  assert.equal(net.calls.filter((c) => c.url.includes('date=2026-10-')).length, 6);
+  assert.match(yaml, /\*name/);
+  const net = netWith({ [ELVIA]: () => plain(yaml) });
+  const env = await setup({ net });
+  await env.run(5 * SECOND);
+  assert.match(env.lines.join('\n'), /elvia\.yml: not YAML/);
+  const ack = await env.gladys.fake.energyPrice(
+    priceRequest(intervalsFrom('2026-11-11T08:00:00.000Z', 1)),
+  );
+  close(ack.data.costs[0].cost, (28.99 + 8.13) * 0.0125);
+  await env.app.stop();
+});
+
+test('capacity step: no VAT in the north and tiltakssone zones; warnings on zone and old data', async () => {
+  const env = await setup({
+    config: { refresh_data: false },
+    contracts: [contract({ grid_company: 'arva', tax_zone: 'north' })],
+  });
+  await env.run();
+  await env.gladys.fake.energyPrice(
+    priceRequest(intervalsFrom('2026-11-02T06:00:00.000Z', 2, 1.5), {
+      inputs: { grid_company: 'arva', tax_zone: 'north' },
+    }),
+  );
+  const app = env.app;
+  const { settings, company } = app.resolve({ grid_company: 'arva', tax_zone: 'north' });
+  const capacity = app.capacityOf(CONTRACT_ID, settings, company);
+  const step = company.tariffs.at(-1).capacity.steps.findLast((s) => s.from <= 3);
+  close(capacity.monthlyWithVat, step.yearly / 12);
+  assert.match(statusText(env), /The data of Arva AS was last checked on 2024-/);
+  await env.app.stop();
+  const south = await setup({
+    config: { refresh_data: false },
+    contracts: [contract({ grid_company: 'arva' })],
+  });
+  await south.run();
+  assert.match(statusText(south), /Tax zone "south" does not match the county of Arva AS/);
+  // A tariff of this year collected last December is not old data.
+  const bkk = await setup({
+    config: { refresh_data: false },
+    contracts: [contract({ grid_company: 'bkk' })],
+  });
+  await bkk.run();
+  assert.doesNotMatch(statusText(bkk), /last checked/);
+  await bkk.app.stop();
+  await south.app.stop();
+});
+
+test('status: the spot source credited when a contract reads spot prices', async () => {
+  const env = await setup({
+    config: { refresh_data: false },
+    contracts: [contract({ supply: 'spot' })],
+  });
+  await env.run();
+  assert.match(statusText(env), /Strømpriser levert av Hva koster strømmen\.no\./);
   await env.app.stop();
 });

@@ -4,7 +4,7 @@ Intégration non officielle : elle tarife votre électricité dans Gladys avec l
 **tarif réseau de votre gestionnaire norvégien** (nettleie), les taxes
 publiques et, si vous le voulez, le prix spot avec la **strømstøtte** ou
 **Norgespris**. Elle n’est liée à aucun gestionnaire de réseau, ni à NVE, ni à
-Nord Pool, ni au projet fri-nettleie.
+Hva koster strømmen.no, ni au projet fri-nettleie.
 
 > Cette intégration n’a jamais été testée avec un vrai contrat Gladys et un
 > vrai compteur en Norvège : ses tests vérifient les prix contre les tarifs
@@ -20,14 +20,16 @@ Nord Pool, ni au projet fri-nettleie.
     mois ;
   - la **taxe de consommation** (forbruksavgift) et la **taxe Enova**
     (1 øre/kWh), et **25 % de TVA** dans la zone sud ;
-  - avec la fourniture **spot** : le prix day-ahead de votre zone plus la
+  - avec la fourniture **spot** : le prix day-ahead horaire de votre zone plus la
     marge de votre fournisseur, moins la **strømstøtte** (90 % du prix spot
     horaire au-delà de 77 øre/kWh hors TVA en 2026, 75 øre en 2025, au plus
     5 000 kWh par mois, logements seulement) ;
   - avec la fourniture **Norgespris** : 40 øre/kWh hors TVA plus votre marge,
     dans la limite de 5 000 kWh par mois (1 000 pour une résidence
-    secondaire), le prix spot au-delà (du 1er octobre 2025 au 31 décembre
-    2026).
+    secondaire), le prix spot au-delà. Le dispositif court du 1er octobre 2025
+    au 31 décembre 2029, mais son prix n’est fixé que pour 2025 et 2026
+    (40 øre) : à partir du 1er janvier 2027, les demi-heures restent sans coût
+    jusqu’à une mise à jour de l’intégration qui porte le nouveau prix.
 - Un appareil par contrat (dans **Découverte** une fois le contrat créé) : le
   **prix actuel** (NOK/kWh), la **pointe de puissance du mois** (kW), le
   **palier de puissance** atteint (NOK/mois, TVA comprise) et le seuil du
@@ -74,7 +76,8 @@ trou dans les données du compteur la fait baisser.
      tiltakssone (Finnmark et communes du Nord-Troms : sans TVA ni taxe de
      consommation) ;
    - **Fourniture** : grid_only, spot ou norgespris, et la **zone de prix**
-     (NO1 à NO5) pour les deux dernières ;
+     (NO1 à NO5) pour les deux dernières (obligatoire : pas de valeur par
+     défaut) ;
    - **Marge du fournisseur** (påslag, NOK/kWh hors TVA), **palier de
      puissance** et **autres frais mensuels** (NOK/mois TVA comprise), tous
      facultatifs.
@@ -84,7 +87,13 @@ trou dans les données du compteur la fait baisser.
 
 Une entrée fausse ne devient jamais une valeur par défaut : les demi-heures
 restent sans coût, le statut nomme l’entrée, et Gladys redemande à son
-passage suivant une fois corrigée. Un gestionnaire qui a plusieurs tarifs à la
+passage suivant une fois corrigée. Le statut prévient aussi quand la zone
+fiscale ne correspond pas au comté du gestionnaire, et quand le tarif en
+vigueur date d’une année antérieure sans que le fichier du gestionnaire ait
+été vérifié cette année (ses prix restent utilisés, non vérifiés cette année). Les limites mensuelles de la
+strømstøtte et de Norgespris comptent les kWh que Gladys envoie depuis le
+début du mois, ou depuis le début du contrat s’il est plus tard : faites
+commencer le contrat le 1er d’un mois. Un gestionnaire qui a plusieurs tarifs à la
 fois (un fichier en a dans son historique) demande le **Nom du tarif** : le
 statut donne les choix.
 
@@ -108,27 +117,33 @@ statut donne les choix.
   des données sous la licence norvégienne des données publiques (NLOD) mises à
   disposition par NVE (<https://data.norge.no/nlod/>). NVE a parfois des mois
   de retard : les prix suivent toujours fri-nettleie.
-- **Prix spot : Nord Pool day-ahead** (fournitures spot et Norgespris
-  seulement), depuis le portail public de données de Nord Pool, lecture non
-  officielle (la même que l’intégration gladys-nord-pool). Le portail garde
-  environ six semaines ; l’intégration garde ce qu’elle a lu 62 jours. Une
-  demi-heure dont le prix spot ne peut pas être lu reste sans coût jusqu’à ce
-  qu’il le soit.
+- **Prix spot : Strømpriser levert av Hva koster strømmen.no**
+  (<https://www.hvakosterstrommen.no>, API ouverte, libre pour tout usage ;
+  fournitures spot et Norgespris seulement). Prix day-ahead horaires
+  d’ENTSO-E convertis en NOK par le site avec le taux Norges Bank du jour : ils
+  peuvent différer un peu des prix en NOK de Nord Pool et de votre facture.
+  Historique depuis le 1er décembre 2021 ; un jour n’est gardé qu’entier (23,
+  24 ou 25 heures), 62 jours. La tarification ne les attend jamais : une
+  demi-heure dont le prix spot n’est pas encore là reste sans coût tout de
+  suite, le jour est lu en arrière-plan et Gladys la tarife à son passage
+  suivant.
 - **Règles de la strømstøtte et de Norgespris** : d’après le règlement
   (FOR-2025-09-08-1791) et les pages du gouvernement, vérifiées contre le
   projet Strømkalkulator (MIT). Elles sont écrites dans l’intégration avec
   leurs dates : après 2026, ou pour une année dont fri-nettleie n’a pas encore
   publié les taux de taxes, les demi-heures restent **sans coût** (jamais un
-  coût deviné) jusqu’à l’arrivée des données.
+  coût deviné) jusqu’à l’arrivée des données. Les taux de taxes viennent d’un
+  fichier du guide de collecte de fri-nettleie (`satser.yml`) : si le projet le
+  déplace, les taux livrés restent et l’année suivante reste sans coût jusqu’à
+  une mise à jour.
 
 ## Bon à savoir
 
 - Toutes les heures sont l’heure locale de la Norvège (Europe/Oslo). La nuit
   du passage à l’heure d’hiver, les deux heures de 02:00 sont « l’heure 2 »,
   comme les gestionnaires comptent.
-- La strømstøtte est calculée heure par heure sur la moyenne des quatre prix
-  au quart d’heure de l’heure ; le prix spot d’une demi-heure est la moyenne
-  de ses deux quarts d’heure (Gladys envoie des demi-heures).
+- La strømstøtte est calculée heure par heure sur le prix spot horaire ; une
+  demi-heure prend le prix de son heure (Gladys envoie des demi-heures).
 - Un total négatif (prix spot négatif) compte pour zéro : Gladys ne prend pas
   de crédit.
 - L’intégration n’envoie rien sur vous : elle lit des fichiers publics.

@@ -28,7 +28,7 @@ export function contract(inputs = {}, id = CONTRACT_ID, extra = {}) {
     template_key: 'nettleie-no',
     template_version: '2026-11-11',
     pricing_mode: 'delegated',
-    inputs: { grid_company: 'Elvia', ...inputs },
+    inputs: { grid_company: 'Elvia', price_area: 'NO1', ...inputs },
     valid_from: '2026-01-01',
     valid_to: null,
     timezone: 'Europe/Oslo',
@@ -197,17 +197,14 @@ export function priceRequest(intervals, { inputs, monthBefore = 0, id = CONTRACT
   };
 }
 
-/** A Nord Pool answer for a day: every quarter at `price(i)` NOK/MWh for the areas. */
-export function nordPoolDay(date, areas = ['NO1'], price = () => 1000) {
+/** A Hva koster strømmen.no answer for a local day of Norway: every hour at `price(i)` NOK/kWh. */
+export function hvaDay(date, price = () => 1) {
   const start = Date.parse(`${date}T00:00:00+01:00`);
-  const entries = [];
-  for (let i = 0; i < 96; i += 1) {
-    const s = start + i * 15 * MINUTE;
-    entries.push({
-      deliveryStart: new Date(s).toISOString(),
-      deliveryEnd: new Date(s + 15 * MINUTE).toISOString(),
-      entryPerArea: Object.fromEntries(areas.map((a) => [a, price(i, a)])),
-    });
-  }
-  return { deliveryDateCET: date, currency: 'NOK', multiAreaEntries: entries, areaStates: [] };
+  return Array.from({ length: 24 }, (_, i) => ({
+    NOK_per_kWh: price(i),
+    EUR_per_kWh: 0,
+    EXR: 10,
+    time_start: new Date(start + i * HOUR).toISOString(),
+    time_end: new Date(start + (i + 1) * HOUR).toISOString(),
+  }));
 }

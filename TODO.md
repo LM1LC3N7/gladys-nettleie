@@ -21,14 +21,16 @@
       `demand` (price per step, not per kW), move the step into the template
       and drop the manual "capacity_fee" input. Spec today: `demand` is
       price × kW with `max` or `top3_average`.
-- [ ] Strømstøtte per hour on the mean of the quarters: check against a real
+- [ ] Strømstøtte per hour on the hourly spot price: check against a real
       bill (the scheme may move to quarters with the 15-minute settlement).
+- [ ] Norgespris runs to 2029-12-31 but its price is set for 2025-2026 only
+      (2027 proposed at 45 øre): update `NORGESPRIS` when decided.
 - [ ] fri-nettleie format changes ("the format is not stable" says the
       project): a file the checks refuse keeps the previous data and is
       logged.
-- [ ] NVE differs from fri-nettleie for Elvia on 2026-11-11 (NVE 13.99 /
-      21.99 øre, fri-nettleie 16.99 / 28.99 since 2026-07-01): NVE is behind;
-      the Test button shows it.
+- [ ] NVE's energileddEks includes the Enova levy (the Test adds it before
+      comparing). NVE is behind for Elvia on 2026-11-11 (its tariff before
+      2026-07-01); the Test button shows it.
 
 ## Decisions
 
@@ -42,7 +44,15 @@
   is only known at the end of the month). Optional fixed input instead.
 - The peak is computed from the kWh Gladys sends for pricing (hourly energy,
   as the companies bill), not from `max_power_kw` (instantaneous).
-- Spot prices from the Nord Pool data portal (same reading as
-  gladys-nord-pool), only for contracts with spot or Norgespris; kept 62 days.
+- Spot prices from Hva koster strømmen.no (open API, free for any use,
+  credit "Strømpriser levert av Hva koster strømmen.no"), hourly, only for
+  contracts with spot or Norgespris; kept 62 days, history from 2021-12. The
+  Nord Pool data portal was dropped at review r1 (its terms forbid automatic
+  extraction).
+- The pricing never waits for the network (review r1): a missing spot day
+  fails the request at once and is read in the background (the core needs a
+  cost for every interval: one missing hour fails the whole request).
+- No default `price_area` (review r1); the tax zone keeps `south` by default
+  with a warning when it does not match the county of the company.
 - NVE only for the Test button comparison (it lags behind the companies).
 - A negative total counts as zero (the core takes no credit).

@@ -3,8 +3,8 @@
 Unofficial integration: it prices your electricity in Gladys with the **grid
 tariff of your Norwegian grid company** (nettleie), the public charges and,
 if you want, the spot price with the **strømstøtte** or **Norgespris**. It is
-not affiliated with any grid company, with NVE, with Nord Pool or with the
-fri-nettleie project.
+not affiliated with any grid company, with NVE, with Hva koster strømmen.no
+or with the fri-nettleie project.
 
 > This integration has never been tested with a real Gladys contract and a
 > real meter in Norway: the prices are checked against the published tariffs
@@ -19,13 +19,16 @@ fri-nettleie project.
     hour, day type (working day, weekend, public holiday) and month;
   - the **consumption tax** (forbruksavgift) and the **Enova levy**
     (1 øre/kWh), and **25 % VAT** in the south zone;
-  - with the **spot** supply: the day-ahead price of your area plus your
+  - with the **spot** supply: the hourly day-ahead price of your area plus your
     supplier's markup, minus the **strømstøtte** (90 % of the hourly spot
     price above 77 øre/kWh without VAT in 2026, 75 øre in 2025, at most
     5,000 kWh a month, households only);
   - with the **Norgespris** supply: 40 øre/kWh without VAT plus your markup,
     within 5,000 kWh a month (1,000 for a holiday home), the spot price
-    beyond (1 October 2025 to 31 December 2026).
+    beyond. The scheme runs from 1 October 2025 to 31 December 2029, but its
+    price is only set for 2025 and 2026 (40 øre): from 1 January 2027 the half
+    hours get no cost until an update of the integration carries the new
+    price.
 - One device per contract (in **Discovery** once the contract exists): the
   **price now** (NOK/kWh), the **capacity peak of the month** (kW), the
   **capacity step** reached (NOK/month, VAT included) and the threshold of
@@ -68,7 +71,7 @@ in the meter data lowers it.
      (Finnmark and the Nord-Troms municipalities: no VAT, no consumption
      tax);
    - **Electricity supply**: grid_only, spot or norgespris, and the **price
-     area** (NO1 to NO5) for the last two;
+     area** (NO1 to NO5) for the last two (required: no default);
    - **Supplier markup** (påslag, NOK/kWh without VAT), **capacity step** and
      **other monthly fees** (NOK/month with VAT), all optional.
 3. In **Discovery**, add the contract device if you want its sensors.
@@ -76,7 +79,13 @@ in the meter data lowers it.
 
 A wrong input never becomes a default: the half hours get no cost, the
 status names the input, and Gladys asks again at its next run once it is
-fixed. A company with several tariffs at once (one file has them in its
+fixed. The status also warns when the tax zone does not match the county of
+the company, and when the tariff in force dates from an earlier year and the
+company's file was not checked this year (its prices are still used, not
+verified this year). The monthly caps of the
+strømstøtte and Norgespris count the kWh Gladys sends since the start of
+the month, or since the contract start when later: start the contract on
+the 1st of a month. A company with several tariffs at once (one file has them in its
 history) asks for the **Tariff name**: the status lists the choices.
 
 ## Where the data comes from, and how fresh it is
@@ -98,24 +107,30 @@ history) asks for the **Tariff name**: the status lists the choices.
   Licence for Open Government Data (NLOD) made available by NVE
   (<https://data.norge.no/nlod/>). NVE is sometimes months behind: the prices
   always follow fri-nettleie.
-- **Spot prices: Nord Pool day-ahead** (only for the spot and Norgespris
-  supplies), from the public data portal of Nord Pool, an unofficial reading
-  (the same as the gladys-nord-pool integration). The portal keeps about six
-  weeks; the integration keeps what it read for 62 days. A half hour whose
-  spot price cannot be read gets no cost until it can.
+- **Spot prices: Strømpriser levert av Hva koster strømmen.no**
+  (<https://www.hvakosterstrommen.no>, open API, free for any use; only for
+  the spot and Norgespris supplies). Hourly ENTSO-E day-ahead prices
+  converted to NOK by the site with the Norges Bank rate of the day: they can
+  differ slightly from the NOK prices of Nord Pool and of your bill. History
+  from 1 December 2021; a day is kept only whole (23, 24 or 25 hours), for
+  62 days. The pricing never waits for them: a half hour whose spot price is
+  not held yet gets no cost at once, the day is read in the background and
+  Gladys prices it at its next run.
 - **Strømstøtte and Norgespris rules**: from the regulation (FOR-2025-09-08-1791)
   and the government pages, checked against the Strømkalkulator project
   (MIT). They are written in the integration with their dates: after 2026,
   or for a year whose tax rates fri-nettleie has not published yet, the half
-  hours get **no cost** (never a guessed one) until the data is there.
+  hours get **no cost** (never a guessed one) until the data is there. The
+  tax rates come from a file of fri-nettleie's collection guide
+  (`satser.yml`): if the project moves it, the shipped rates stay and the
+  following year has no cost until an update.
 
 ## Good to know
 
 - All times are Norway's local time (Europe/Oslo). On the night the clocks go
   back, both 02:00 hours are "hour 2", as the companies count.
-- The strømstøtte is computed hour by hour on the mean of the four quarter
-  prices of the hour; the spot price of a half hour is the mean of its two
-  quarters (Gladys sends half hours).
+- The strømstøtte is computed hour by hour on the hourly spot price; a half
+  hour takes the price of its hour (Gladys sends half hours).
 - A total below zero (negative spot price) counts as zero: Gladys does not
   take a credit.
 - The integration sends nothing about you anywhere: it reads public files.

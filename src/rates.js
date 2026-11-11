@@ -16,8 +16,9 @@
 // Strømstøtte (Forskrift om strømstønad, FOR-2025-09-08-1791 § 5): 90 % of
 // the hourly spot price above a threshold (75 øre/kWh without VAT in 2025,
 // 77 in 2026), at most 5,000 kWh per month and metering point, households
-// only (not holiday homes). Norgespris: a fixed 40 øre/kWh without VAT from
-// 1 October 2025 to 31 December 2026, at most 5,000 kWh per month for a home
+// only (not holiday homes). Norgespris (FOR-2025-09-08-1790, from 1 October
+// 2025 to 31 December 2029): 40 øre/kWh without VAT, a price set only up to
+// 31 December 2026, at most 5,000 kWh per month for a home
 // and 1,000 for a holiday home; beyond, the spot price. Outside the dates
 // below, the scheme is unknown: no price is invented. Pure.
 // -----------------------------------------------------------------------------

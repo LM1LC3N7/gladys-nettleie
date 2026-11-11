@@ -30,8 +30,9 @@ import {
   REQUEST_GAP,
   RETRY_MAX,
   RETRY_MIN,
-  SPOT_BUDGET,
-  SPOT_FETCHES,
+  SPOT_DAYS_PER_ASK,
+  SPOT_FIRST_DAY,
+  SPOT_QUEUE_MAX,
   SPOT_RETRY,
   SPOT_TOMORROW_HOUR,
   STORE_RETRY,
@@ -46,7 +47,7 @@ import { join, text } from './i18n.js';
 import { compareDay, nveUrl, parseNveDay } from './nve.js';
 import { SpotMissing, currentPrice, priceIntervals } from './pricing.js';
 import { RateError, checkRates, taxesOn } from './rates.js';
-import { checkSpotCache, parseSpotDay, priceIn, pruneSpot, spotUrl } from './spot.js';
+import { checkSpotCache, daysOf, parseSpotDay, priceIn, pruneSpot, spotUrl } from './spot.js';
 import { FileStore } from './store.js';
 import {
   COMPUTED_METHODS,
@@ -58,8 +59,13 @@ import {
 } from './tariffs.js';
 import { nextDate, oslo, osloMidnight } from './time.js';
 
-const SERVICES = { github: 'GitHub (fri-nettleie)', nordpool: 'Nord Pool', nve: 'NVE' };
-const OLD_SPOT_DAYS = 40;
+// Nordland, Troms, Finnmark: no VAT on household electricity (north or tiltakssone zone).
+const NORTHERN_COUNTIES = ['18', '55', '56'];
+const SERVICES = {
+  github: 'GitHub (fri-nettleie)',
+  spot: 'Hva koster strømmen.no',
+  nve: 'NVE',
+};
 const defaultTimers = { setTimeout, clearTimeout };
 const defaultMonotonic = () => performance.timeOrigin + performance.now();
 
@@ -117,7 +123,8 @@ export class NettleieApp {
     this.spot = {};
     /** "date" -> monotonic time before which the day is not asked again. */
     this.spotWait = new Map();
-    this.spotInFlight = new Map();
+    this.spotQueue = new Set();
+    this.spotDraining = null;
     /** id -> short problem text of the last pricing (cleared by a success). */
     this.problems = new Map();
     this.nveCache = new Map();
@@ -349,16 +356,19 @@ export class NettleieApp {
   }
 
   /** Saves one store; never while it has not been read (it would erase it). */
+  /** Saves one store; true when written. Never while it has not been read (it would erase it). */
   async save(name) {
-    if (!this.loaded[name]) return;
+    if (!this.loaded[name]) return false;
     let data;
     if (name === 'state') data = { v: 1, ...this.state };
     else if (name === 'spot') data = { v: 1, areas: this.spot };
     else data = { v: 1, contracts: Object.fromEntries(this.capacity) };
     try {
       await this.stores[name].save(data);
+      return true;
     } catch (err) {
       this.log.warn(`/data ${name} not written (${err?.code ?? err?.name ?? 'Error'})`);
+      return false;
     }
   }
 
@@ -434,31 +444,25 @@ export class NettleieApp {
     if (validContractId(id)) this.record(id, intervals);
     try {
       const { settings, company } = this.resolve(contract.inputs);
-      const deadline = this.monotonic() + SPOT_BUDGET;
-      let fetches = 0;
-      for (;;) {
-        try {
-          const costs = priceIntervals(
-            intervals,
-            Number(before?.month),
-            settings,
-            this.context(company),
+      try {
+        const costs = priceIntervals(
+          intervals,
+          Number(before?.month),
+          settings,
+          this.context(company),
+        );
+        if (this.problems.delete(id)) this.updateStatus().catch(() => {});
+        return costs;
+      } catch (err) {
+        // Never a wait here: the days missing are read in the background and
+        // Gladys asks again at its next run (30 minutes at most).
+        if (err instanceof SpotMissing) {
+          this.wantSpot(
+            err.area,
+            daysOf(intervals.map((i) => Date.parse(i?.starts_at)).filter(Number.isFinite)),
           );
-          if (this.problems.delete(id)) this.updateStatus().catch(() => {});
-          return costs;
-        } catch (err) {
-          // A spot price not read yet: read the day (within the budget), then again.
-          if (
-            !(err instanceof SpotMissing) ||
-            fetches >= SPOT_FETCHES ||
-            this.monotonic() > deadline
-          ) {
-            throw err;
-          }
-          fetches += 1;
-          const got = await this.fetchSpot(oslo(err.at).date, [err.area]);
-          if (!got) throw err;
         }
+        throw err;
       }
     } catch (err) {
       const problem = problemOf(err);
@@ -596,17 +600,10 @@ export class NettleieApp {
       await this.publishContract(id);
       if (this.stale(gen)) return;
     }
-    const areas = this.spotAreas();
-    if (areas.length > 0) {
-      const local = oslo(now);
-      const dates = [local.date];
-      if (local.h >= SPOT_TOMORROW_HOUR) dates.push(nextDate(local.date));
-      for (const date of dates) {
-        const missing = areas.filter((a) => !this.spot[a]?.[date]);
-        if (missing.length > 0) await this.fetchSpot(date, missing);
-        if (this.stale(gen)) return;
-      }
-    }
+    const local = oslo(now);
+    const dates = [local.date];
+    if (local.h >= SPOT_TOMORROW_HOUR) dates.push(nextDate(local.date));
+    for (const area of this.spotAreas()) this.wantSpot(area, dates);
     // Next tick at the next quarter of the wall clock (+5 s, after the change).
     const quarter = 15 * MINUTE;
     this.setTimer('tick', Math.min(TICK, quarter - (now % quarter) + 5000), () => this.tick());
@@ -627,53 +624,60 @@ export class NettleieApp {
   }
 
   /**
-   * Reads one market day for some areas (plus the other areas in use, in the
-   * same request). True when every asked area got prices. A day that failed
-   * is not asked again before SPOT_RETRY (a day of more than 40 days ago,
-   * gone from the portal: 24 h).
+   * Queues the days of an area that are not held for a read in the
+   * background (one at a time, on the spot lane), never awaited. A day not
+   * published yet or that failed is not asked again before SPOT_RETRY; a day
+   * before the history of the source or after tomorrow is never asked.
    */
-  async fetchSpot(date, areas) {
-    const key = date;
-    if (this.spotInFlight.has(key)) {
-      await this.spotInFlight.get(key);
-      return areas.every((a) => this.spot[a]?.[date]);
+  wantSpot(area, dates) {
+    const today = oslo(this.now()).date;
+    const tomorrow = nextDate(today);
+    for (const date of dates.slice(0, SPOT_DAYS_PER_ASK)) {
+      if (date < SPOT_FIRST_DAY || date > tomorrow) continue;
+      if (this.spot[area]?.[date]) continue;
+      const key = `${area}|${date}`;
+      const wait = this.spotWait.get(key);
+      if (wait !== undefined && this.monotonic() < wait) continue;
+      if (this.spotQueue.size >= SPOT_QUEUE_MAX) break;
+      this.spotQueue.add(key);
     }
-    const wait = this.spotWait.get(key);
-    if (wait !== undefined && this.monotonic() < wait) return false;
-    const all = [...new Set([...areas, ...this.spotAreas()])].sort();
-    const job = (async () => {
+    if (!this.spotDraining && this.spotQueue.size > 0) {
+      this.spotDraining = this.drainSpot().finally(() => {
+        this.spotDraining = null;
+      });
+    }
+  }
+
+  async drainSpot() {
+    const gen = this.gen;
+    while (this.spotQueue.size > 0 && !this.stale(gen)) {
+      const key = this.spotQueue.values().next().value;
+      this.spotQueue.delete(key);
+      const [area, date] = key.split('|');
+      if (this.spot[area]?.[date]) continue;
       let answer;
       try {
-        answer = await this.request('nordpool', spotUrl(date, all), {
-          json: true,
-          timeoutMs: 8000,
-        });
+        answer = await this.request('spot', spotUrl(date, area), { json: true, timeoutMs: 10_000 });
       } catch (err) {
-        const old = Date.parse(`${date}T00:00:00Z`) < this.now() - OLD_SPOT_DAYS * 86_400_000;
-        this.spotWait.set(key, this.monotonic() + (old ? 24 * HOUR : SPOT_RETRY));
-        this.log.warn(`Spot prices of ${date} not read (${err?.message ?? 'error'})`);
-        return;
+        this.spotWait.set(key, this.monotonic() + SPOT_RETRY);
+        // 404: the day is not published yet (tomorrow before 13:00).
+        if (err?.status !== 404) {
+          this.log.warn(`Spot prices ${area} ${date} not read (${err?.message ?? 'error'})`);
+        }
+        continue;
       }
-      const parsed = answer.data ? parseSpotDay(answer.data, all) : {};
-      const at = this.now();
-      let got = false;
-      for (const [area, slots] of Object.entries(parsed)) {
-        // A whole day is 92 to 100 quarters (or 23 to 25 hours): a part is not kept.
-        if (slots.length < 23) continue;
-        (this.spot[area] ??= {})[date] = { slots, at };
-        got = true;
+      if (this.stale(gen)) return;
+      const slots = answer.data === undefined ? null : parseSpotDay(answer.data, date);
+      if (!slots) {
+        // Not the whole day: never kept in part.
+        this.spotWait.set(key, this.monotonic() + SPOT_RETRY);
+        this.log.warn(`Spot prices ${area} ${date}: not a whole day, not kept`);
+        continue;
       }
-      if (!got) this.spotWait.set(key, this.monotonic() + SPOT_RETRY);
+      (this.spot[area] ??= {})[date] = { slots, at: this.now() };
       pruneSpot(this.spot, oslo(this.now()).date);
       await this.save('spot');
-    })();
-    this.spotInFlight.set(key, job);
-    try {
-      await job;
-    } finally {
-      this.spotInFlight.delete(key);
     }
-    return areas.every((a) => this.spot[a]?.[date]);
   }
 
   // --- Requests: one lane per service, paused after a 429/5xx --------------------------
@@ -761,7 +765,12 @@ export class NettleieApp {
     const gen = this.gen;
     // Due time written before the requests: a restart never asks sooner.
     this.state.refreshAt = this.now() + REFRESH_RETRY;
-    await this.save('state');
+    if (!(await this.save('state'))) {
+      // Not written (/data unreadable or read-only): no read, or every restart
+      // would read again. The shipped data stays; tried again in an hour.
+      if (!this.stale(gen)) this.setTimer('refresh', REFRESH_RETRY, () => this.refresh());
+      return;
+    }
     let ok = await this.refreshFile('rates', RATES_PATH);
     for (const slug of this.usedSlugs()) {
       if (this.stale(gen)) return;
@@ -826,6 +835,55 @@ export class NettleieApp {
     return String(this.catalog.source?.committed ?? '').slice(0, 10);
   }
 
+  /**
+   * Warnings about the contracts that still price: a company's data not
+   * checked since before this year, a tax zone that does not match the county
+   * of the company (from the NVE list).
+   */
+  warnings() {
+    const out = [];
+    const seen = new Set();
+    for (const { inputs } of this.contracts.values()) {
+      let resolved;
+      try {
+        resolved = this.resolve(inputs);
+      } catch {
+        continue;
+      }
+      for (const w of this.warningsFor(resolved, seen)) out.push(w);
+    }
+    return out;
+  }
+
+  warningsFor({ slug, company, settings }, seen = new Set()) {
+    const out = [];
+    const year = oslo(this.now()).y;
+    // A tariff carried over from an earlier year (open, not dated this year)
+    // whose file was not checked this year: still used, but said.
+    const yearStart = `${year}-01-01`;
+    if (!seen.has(slug) && company.updated < yearStart) {
+      let from = yearStart;
+      try {
+        from = tariffOn(company, {
+          group: settings.group,
+          name: settings.tariffName,
+          date: oslo(this.now()).date,
+        }).from;
+      } catch {
+        // no tariff today: reported by the pricing
+      }
+      if (from < yearStart) {
+        out.push(text('stale', { company: company.name, date: company.updated }));
+      }
+    }
+    seen.add(slug);
+    const county = this.catalog.nve[slug]?.county;
+    if (county && NORTHERN_COUNTIES.includes(county) === (settings.zone === 'south')) {
+      out.push(text('zoneMismatch', { company: company.name, zone: settings.zone }));
+    }
+    return out;
+  }
+
   async updateStatus() {
     if (this.stopped) return;
     const count = this.contracts.size;
@@ -836,6 +894,8 @@ export class NettleieApp {
     ];
     const problem = [...this.problems.values()][0];
     if (problem) parts.push(text('problem', { problem }));
+    for (const warning of this.warnings().slice(0, 2)) parts.push(warning);
+    if (this.spotAreas().length > 0) parts.push(text('spotCredit'));
     for (const service of Object.keys(this.state.pauses)) {
       const pause = this.pauseOf(service);
       if (pause) {
@@ -930,6 +990,7 @@ export class NettleieApp {
       parts.push(text('testNoCapacity', { method: capacity?.method ?? '?' }));
     }
     parts.push(await this.compareWithNve(slug, settings.group, tariff, local.date));
+    parts.push(...this.warningsFor(resolved));
     return join(...parts);
   }
 
@@ -957,10 +1018,13 @@ export class NettleieApp {
     }
     if (!nve) return text('testNveNone', { reason: 'no data for that day' });
     const energy = {};
+    const enova = this.catalog.rates()?.enova ?? 0;
     const start = osloMidnight(date);
     for (let t = start; oslo(t).date === date; t += HOUR) {
       const local = oslo(t);
-      energy[local.h] = energyPrice(tariff, local).ore;
+      // NVE's energileddEks holds the Enova levy (without VAT and consumption
+      // tax); fri-nettleie leaves it out: added here so equal tariffs compare equal.
+      energy[local.h] = Math.round((energyPrice(tariff, local).ore + enova) * 1e6) / 1e6;
     }
     const ours = {
       energy,

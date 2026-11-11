@@ -21,8 +21,8 @@
         "fr": "Tarifs réseau norvégiens"
       },
       "description": {
-        "en": "This integration prices your electricity with the grid tariff of your company: create a contract with the \"Nettleie (Norway)\" template in Energy > Contracts and enter your grid company there. Tariffs: fri-nettleie (kraftsystemet, CC BY 4.0), shipped with the integration and read again once a day from GitHub. Spot prices (only for the \"spot\" and \"Norgespris\" supplies): Nord Pool day-ahead, unofficial reading. The capacity step (kapasitetsledd) is shown by the contract device, not added to the costs: see the documentation.",
-        "fr": "Cette intégration tarifie votre électricité avec le tarif réseau de votre gestionnaire : créez un contrat avec le modèle « Nettleie (Norvège) » dans Énergie > Contrats et indiquez-y votre gestionnaire. Tarifs : fri-nettleie (kraftsystemet, CC BY 4.0), livrés avec l’intégration et relus une fois par jour sur GitHub. Prix spot (seulement pour les fournitures « spot » et « Norgespris ») : day-ahead Nord Pool, lecture non officielle. Le palier de puissance (kapasitetsledd) est affiché par l’appareil du contrat, pas ajouté aux coûts : voir la documentation."
+        "en": "This integration prices your electricity with the grid tariff of your company: create a contract with the \"Nettleie (Norway)\" template in Energy > Contracts and enter your grid company there. Tariffs: fri-nettleie (kraftsystemet, CC BY 4.0), shipped with the integration and read again once a day from GitHub. Spot prices (only for the \"spot\" and \"Norgespris\" supplies): Strømpriser levert av Hva koster strømmen.no (ENTSO-E day-ahead, in NOK). The capacity step (kapasitetsledd) is shown by the contract device, not added to the costs: see the documentation.",
+        "fr": "Cette intégration tarifie votre électricité avec le tarif réseau de votre gestionnaire : créez un contrat avec le modèle « Nettleie (Norvège) » dans Énergie > Contrats et indiquez-y votre gestionnaire. Tarifs : fri-nettleie (kraftsystemet, CC BY 4.0), livrés avec l’intégration et relus une fois par jour sur GitHub. Prix spot (seulement pour les fournitures « spot » et « Norgespris ») : Strømpriser levert av Hva koster strømmen.no (day-ahead ENTSO-E, en NOK). Le palier de puissance (kapasitetsledd) est affiché par l’appareil du contrat, pas ajouté aux coûts : voir la documentation."
       },
       "links": [
         {
@@ -37,6 +37,13 @@
           "label": {
             "en": "Documentation",
             "fr": "Documentation"
+          }
+        },
+        {
+          "url": "https://www.hvakosterstrommen.no",
+          "label": {
+            "en": "Strømpriser levert av Hva koster strømmen.no",
+            "fr": "Strømpriser levert av Hva koster strømmen.no"
           }
         }
       ]
@@ -124,8 +131,8 @@
               "fr": "Zone fiscale"
             },
             "description": {
-              "en": "south: consumption tax and 25 % VAT. north (Nordland, Troms): consumption tax, no VAT. tiltakssone (Finnmark and the Nord-Troms municipalities): neither.",
-              "fr": "south : taxe de consommation et TVA 25 %. north (Nordland, Troms) : taxe de consommation, sans TVA. tiltakssone (Finnmark et communes du Nord-Troms) : ni l’une ni l’autre."
+              "en": "south: consumption tax and 25 % VAT. north (Nordland, Troms): consumption tax, no VAT. tiltakssone (Finnmark and the Nord-Troms municipalities): neither. The status warns when it does not match the county of the company.",
+              "fr": "south : taxe de consommation et TVA 25 %. north (Nordland, Troms) : taxe de consommation, sans TVA. tiltakssone (Finnmark et communes du Nord-Troms) : ni l’une ni l’autre. Le statut prévient si elle ne correspond pas au comté du gestionnaire."
             }
           },
           {
@@ -138,22 +145,21 @@
               "fr": "Fourniture d’électricité"
             },
             "description": {
-              "en": "grid_only: the grid tariff alone. spot: plus the spot price of the area and the markup below, minus the strømstøtte (households). norgespris: plus Norgespris (40 øre/kWh without VAT, within its monthly cap, the spot price beyond) and the markup.",
-              "fr": "grid_only : le tarif réseau seul. spot : plus le prix spot de la zone et la marge ci-dessous, moins la strømstøtte (logements). norgespris : plus Norgespris (40 øre/kWh hors TVA, dans sa limite mensuelle, le prix spot au-delà) et la marge."
+              "en": "grid_only: the grid tariff alone. spot: plus the hourly spot price of the area and your markup, minus the strømstøtte (households). norgespris: plus Norgespris (40 øre/kWh without VAT, within its monthly cap) and your markup.",
+              "fr": "grid_only : le tarif réseau seul. spot : plus le prix spot horaire de la zone et votre marge, moins la strømstøtte (logements). norgespris : plus Norgespris (40 øre/kWh hors TVA, dans sa limite mensuelle) et votre marge."
             }
           },
           {
             "key": "price_area",
             "type": "select",
             "options": ["NO1", "NO2", "NO3", "NO4", "NO5"],
-            "default": "NO1",
             "label": {
               "en": "Price area",
               "fr": "Zone de prix"
             },
             "description": {
-              "en": "The spot price area of your address (spot and Norgespris supplies only).",
-              "fr": "La zone de prix spot de votre adresse (fournitures spot et Norgespris seulement)."
+              "en": "The spot price area of your address (NO1 Oslo, NO2 Kristiansand, NO3 Trondheim, NO4 Tromsø, NO5 Bergen). Needed with the spot and Norgespris supplies: no default, a wrong area would go unnoticed.",
+              "fr": "La zone de prix spot de votre adresse (NO1 Oslo, NO2 Kristiansand, NO3 Trondheim, NO4 Tromsø, NO5 Bergen). Obligatoire avec les fournitures spot et Norgespris : pas de valeur par défaut, une mauvaise zone passerait inaperçue."
             }
           },
           {

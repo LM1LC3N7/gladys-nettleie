@@ -41,13 +41,16 @@ export const STORE_RETRY = 10 * SECOND;
 // A read of /data waited for at most this long by the start.
 export const STORE_WAIT = 5 * SECOND;
 
-// Spot prices: tomorrow's from 13:00 in Norway; a day that failed is asked
-// again after SPOT_RETRY; a pricing request fetches at most SPOT_FETCHES days
-// within SPOT_BUDGET (Gladys waits 30 s), the rest at its next run.
+// Spot prices (Hva koster strømmen.no): tomorrow's from 13:00 in Norway; a
+// day not published yet or that failed is asked again after SPOT_RETRY. The
+// pricing never waits for them: the days it misses are queued (at most
+// SPOT_DAYS_PER_ASK per request, SPOT_QUEUE_MAX in all) and read in the
+// background, one at a time. The source has no day before SPOT_FIRST_DAY.
 export const SPOT_TOMORROW_HOUR = 13;
 export const SPOT_RETRY = 15 * MINUTE;
-export const SPOT_FETCHES = 6;
-export const SPOT_BUDGET = 18 * SECOND;
+export const SPOT_DAYS_PER_ASK = 32;
+export const SPOT_QUEUE_MAX = 64;
+export const SPOT_FIRST_DAY = '2021-12-01';
 
 // Test button: NVE compared for at most this many contracts.
 export const TEST_CONTRACTS = 3;

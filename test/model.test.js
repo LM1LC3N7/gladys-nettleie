@@ -12,7 +12,7 @@ import { easter, isHoliday } from '../src/holidays.js';
 import { compareDay, parseNveDay } from '../src/nve.js';
 import { SpotMissing, capOf, currentPrice, priceIntervals } from '../src/pricing.js';
 import { RateError, checkRates, norgesprisOn, supportThreshold, taxesOn } from '../src/rates.js';
-import { checkSpotCache, parseSpotDay, priceIn, pruneSpot } from '../src/spot.js';
+import { checkSpotCache, parseSpotDay, priceIn, pruneSpot, spotUrl } from '../src/spot.js';
 import {
   TariffError,
   capacityStep,
@@ -22,7 +22,12 @@ import {
   tariffOn,
 } from '../src/tariffs.js';
 import { nextDate, oslo, osloMidnight, parseInstant, previousMonth } from '../src/time.js';
-import { nordPoolDay } from './helpers/app.js';
+import { readFileSync } from 'node:fs';
+
+const fixture = (name) =>
+  JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
+const HVA = fixture('hvakosterstrommen-2026-11-10-NO1.json');
+const NVE_BKK = fixture('nve-bkk-2026-11-11.json');
 
 const snapshot = loadSnapshot();
 const catalog = new Catalog(snapshot);
@@ -60,7 +65,8 @@ function doc(tariff = {}, extra = {}) {
   };
 }
 const company = (tariff, extra) => checkCompany(doc(tariff, extra)).company;
-const settings = (inputs = {}) => readInputs({ grid_company: 'test', ...inputs });
+const settings = (inputs = {}) =>
+  readInputs({ grid_company: 'test', price_area: 'NO1', ...inputs });
 const ctx = (c = company(), spot = () => 1) => ({ company: c, rates: RATES, spot });
 
 // --- time and holidays -------------------------------------------------------------
@@ -309,9 +315,14 @@ test('contract inputs: defaults, refusals, never a silent default for a wrong va
     group: 'husholdning',
     zone: 'south',
     supply: 'grid_only',
-    area: 'NO1',
+    area: null,
     markup: 0,
   });
+  assert.throws(() => readInputs({ grid_company: 'x', supply: 'spot' }), /price_area is needed/);
+  assert.equal(
+    readInputs({ grid_company: 'x', supply: 'norgespris', price_area: 'NO5' }).area,
+    'NO5',
+  );
   assert.equal(readInputs({ grid_company: 'x', customer_group: 'holiday_home' }).group, 'fritid');
   assert.equal(readInputs({ grid_company: 'x', supplier_markup: '0.05' }).markup, 0.05);
   for (const bad of [
@@ -603,29 +614,73 @@ test('catalog: a file read again overrides the snapshot; the snapshot stays the 
 
 // --- spot and NVE ------------------------------------------------------------------
 
-test('spot: a Nord Pool day in NOK per kWh, kept 62 days', () => {
-  const day = parseSpotDay(
-    nordPoolDay('2026-11-11', ['NO1', 'NO2'], (i, a) => (a === 'NO1' ? 1234.56 : i)),
-    ['NO1', 'NO2'],
+test('spot: a whole local day of Hva koster strømmen.no, hour by hour, kept 62 days', () => {
+  const day = parseSpotDay(HVA, '2026-11-10');
+  assert.equal(day.length, 24);
+  assert.equal(day[0][0], Date.parse('2026-11-09T23:00:00Z'));
+  assert.equal(day[0][2], 2.0612);
+  assert.equal(priceIn({ slots: day }, Date.parse('2026-11-09T23:40:00Z')), 2.0612);
+  assert.equal(priceIn({ slots: day }, Date.parse('2026-11-10T23:00:00Z')), undefined);
+  assert.equal(
+    spotUrl('2026-11-10', 'NO5'),
+    'https://www.hvakosterstrommen.no/api/v1/prices/2026/11-10_NO5.json',
   );
-  assert.equal(day.NO1.length, 96);
-  assert.equal(day.NO1[0][2], 1.23456);
-  assert.equal(priceIn({ slots: day.NO2 }, Date.parse('2026-11-11T00:20:00Z')), 0.005);
-  assert.equal(priceIn({ slots: day.NO2 }, Date.parse('2026-11-12T00:20:00Z')), undefined);
-  assert.deepEqual(parseSpotDay({ currency: 'EUR', multiAreaEntries: [] }, ['NO1']), {});
-  assert.deepEqual(
-    parseSpotDay({ multiAreaEntries: [{ deliveryStart: 'x', entryPerArea: { NO1: 1 } }] }, ['NO1']),
-    {},
+  assert.throws(() => spotUrl('2026-11-10', 'SE3'));
+  // Not the whole day: refused, never kept in part.
+  assert.equal(parseSpotDay(HVA.slice(0, 23), '2026-11-10'), null);
+  assert.equal(parseSpotDay(HVA, '2026-11-11'), null);
+  assert.equal(parseSpotDay([...HVA.slice(0, 5), ...HVA.slice(6)], '2026-11-10'), null);
+  assert.equal(
+    parseSpotDay(
+      HVA.map((e, i) => (i === 3 ? { ...e, NOK_per_kWh: '1' } : e)),
+      '2026-11-10',
+    ),
+    null,
+  );
+  assert.equal(
+    parseSpotDay(
+      HVA.map((e, i) => (i === 3 ? { ...e, NOK_per_kWh: undefined } : e)),
+      '2026-11-10',
+    ),
+    null,
+  );
+  assert.equal(parseSpotDay({}, '2026-11-10'), null);
+  // The day the clocks go back has 25 hours, the spring one 23.
+  const hours = (date, n, startIso) =>
+    Array.from({ length: n }, (_, i) => ({
+      NOK_per_kWh: 1,
+      time_start: new Date(Date.parse(startIso) + i * 3600_000).toISOString(),
+      time_end: new Date(Date.parse(startIso) + (i + 1) * 3600_000).toISOString(),
+    }));
+  assert.equal(
+    parseSpotDay(hours('2026-10-25', 25, '2026-10-24T22:00:00Z'), '2026-10-25').length,
+    25,
+  );
+  assert.equal(parseSpotDay(hours('2026-10-25', 24, '2026-10-24T22:00:00Z'), '2026-10-25'), null);
+  assert.equal(
+    parseSpotDay(hours('2026-03-29', 23, '2026-03-28T23:00:00Z'), '2026-03-29').length,
+    23,
   );
   const cache = checkSpotCache({
-    NO1: { '2026-11-11': { slots: day.NO1, at: 1 }, bad: { slots: [] } },
+    NO1: { '2026-11-10': { slots: day, at: 1 }, '2026-11-09': { slots: day.slice(1) } },
     XX: {},
   });
   assert.deepEqual(Object.keys(cache), ['NO1']);
-  assert.deepEqual(Object.keys(cache.NO1), ['2026-11-11']);
-  cache.NO1['2026-08-01'] = { slots: day.NO1 };
-  pruneSpot(cache, '2026-11-11');
-  assert.deepEqual(Object.keys(cache.NO1), ['2026-11-11']);
+  assert.deepEqual(Object.keys(cache.NO1), ['2026-11-10']);
+  cache.NO1['2026-08-01'] = { slots: day };
+  pruneSpot(cache, '2026-11-10');
+  assert.deepEqual(Object.keys(cache.NO1), ['2026-11-10']);
+});
+
+test('NVE BKK of 2026-11-11 (a real answer): the same tariff once the Enova levy is counted', () => {
+  const nve = parseNveDay(NVE_BKK);
+  const bkk = tariffOn(catalog.company('bkk'), { group: 'husholdning', date: '2026-11-11' });
+  const energy = {};
+  for (let t = osloMidnight('2026-11-11'); oslo(t).date === '2026-11-11'; t += 3600_000) {
+    energy[oslo(t).h] = Math.round((energyPrice(bkk, oslo(t)).ore + RATES.enova) * 1e6) / 1e6;
+  }
+  const steps = bkk.capacity.steps.map((st) => ({ from: st.from, monthly: st.yearly / 12 }));
+  assert.equal(compareDay({ energy, steps }, nve).same, true);
 });
 
 test('NVE: one day parsed and compared with fri-nettleie', () => {
@@ -675,4 +730,41 @@ test('strømstøtte: nothing below the threshold, never a charge', () => {
     ctx(company(), () => 0.5),
   );
   close(cost.cost, (20 + 8.13) * 0.0125 + 0.5 * 1.25);
+});
+
+test('current price: the cap boundary and an unknown month', () => {
+  const now = Date.parse('2026-11-11T08:10:00Z');
+  const s = settings({ supply: 'norgespris' });
+  const grid = (20 + 8.13) * 0.0125;
+  close(
+    currentPrice(
+      now,
+      4999.9,
+      s,
+      ctx(company(), () => 2),
+    ).price,
+    grid + 0.5,
+  );
+  // At exactly 5,000 kWh the next kWh is beyond the cap: the spot price.
+  close(
+    currentPrice(
+      now,
+      5000,
+      s,
+      ctx(company(), () => 2),
+    ).price,
+    grid + 2.5,
+  );
+  assert.throws(
+    () =>
+      currentPrice(
+        now,
+        NaN,
+        s,
+        ctx(company(), () => 2),
+      ),
+    /month are unknown/,
+  );
+  // No cap, no month needed.
+  close(currentPrice(now, NaN, settings(), ctx()).price, grid);
 });

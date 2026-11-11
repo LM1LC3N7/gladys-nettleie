@@ -158,7 +158,10 @@ export function priceIntervals(intervals, monthBefore, settings, context) {
  */
 export function currentPrice(nowMs, monthUsed, settings, context) {
   const cap = capOf(settings);
-  const within = cap === null || (Number.isFinite(monthUsed) && monthUsed < cap);
+  if (cap !== null && !(Number.isFinite(monthUsed) && monthUsed >= 0)) {
+    throw new Error('the kWh of the month are unknown');
+  }
+  const within = cap === null || monthUsed < cap;
   const at = (ms) => {
     const p = pricesAt(Math.floor(ms / (30 * MINUTE)) * 30 * MINUTE, settings, context, {
       needOut: !within,

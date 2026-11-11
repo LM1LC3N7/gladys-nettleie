@@ -34,12 +34,15 @@ organisation numbers and counties of its list of grid companies. Contains
 data under the Norwegian Licence for Open Government Data (NLOD) made
 available by NVE (<https://data.norge.no/nlod/>).
 
-## Nord Pool day-ahead prices
+## Spot prices: Hva koster strømmen.no
 
+Strømpriser levert av Hva koster strømmen.no (<https://www.hvakosterstrommen.no>).
 The spot prices (only for the "spot" and "norgespris" supplies) are read from
-the public data portal of Nord Pool (<https://data.nordpoolgroup.com>), as
-the gladys-nord-pool integration of the same author does. Unofficial: not
-affiliated with nor endorsed by Nord Pool.
+its open API (<https://www.hvakosterstrommen.no/strompris-api>), "fritt
+tilgjengelig for hvem som helst, til hva som helst", which asks to be credited
+as the source. The site publishes the ENTSO-E day-ahead prices converted to
+NOK with the Norges Bank rate of the day. Changes made: none to the prices; a
+half hour takes the price of its hour.
 
 ## References read, not copied
 

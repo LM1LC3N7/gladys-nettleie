@@ -11,7 +11,8 @@ real Gladys contract: see the documentation.
 - Documentation: [English](docs/en.md), [français](docs/fr.md).
 - Data: [fri-nettleie](https://github.com/kraftsystemet/fri-nettleie) by Fri
   nettleie (kraftsystemet), CC BY 4.0; NVE tariff API (NLOD) for the
-  comparison of the Test button; Nord Pool day-ahead prices (unofficial). See
+  comparison of the Test button; spot prices: Strømpriser levert av Hva koster
+  strømmen.no. See
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 - Requires Gladys 5.2.0 or later (energy contracts).
 

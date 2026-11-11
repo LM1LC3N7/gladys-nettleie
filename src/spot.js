@@ -1,59 +1,64 @@
 // -----------------------------------------------------------------------------
-// Day-ahead spot prices of the Norwegian areas (NO1 to NO5), in NOK, from the
-// public data portal of Nord Pool (https://data.nordpoolgroup.com, no key, 15-
-// minute slots, about six weeks of history; the same reading as the
-// gladys-nord-pool integration of the same author). Needed only by a contract
-// whose supply is "spot" or "norgespris" (beyond its cap). Unofficial: not
-// affiliated with Nord Pool.
+// Day-ahead spot prices of the Norwegian areas (NO1 to NO5) in NOK/kWh without
+// VAT, hour by hour, from the open API of Hva koster strømmen.no
+// (https://www.hvakosterstrommen.no/strompris-api, "fritt tilgjengelig for
+// hvem som helst, til hva som helst"; credit: "Strømpriser levert av Hva koster
+// strømmen.no"). It publishes the ENTSO-E day-ahead prices converted to NOK
+// with the Norges Bank rate of the day, one static JSON file per area and
+// local day, history from 1 December 2021. Hourly prices are what the bill,
+// the strømstøtte and Norgespris use. Needed only by a contract whose supply
+// is "spot" or "norgespris" (beyond its cap).
 //
-// The prices are kept per area and market day (the CET date, which is also
-// Norway's) for 62 days, so a recalculation of the last month is priced from
-// what was read, never re-fetched. Pure, except the cache object.
+// A day is kept only whole: every hour (or quarter) from local midnight to the
+// next one, 23, 24 or 25 hours. The days read are kept 62 days. Pure, except
+// the cache object.
 // -----------------------------------------------------------------------------
 
 import { AREA_OPTIONS } from './contract.js';
+import { HOUR, MINUTE, nextDate, oslo, osloMidnight, parseInstant } from './time.js';
 
-export const SPOT_URL = 'https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices';
+export const SPOT_BASE = 'https://www.hvakosterstrommen.no/api/v1/prices/';
 export const KEEP_DAYS = 62;
+const MAX_SLOTS = 100;
+const SLOT_LENGTHS = [15 * MINUTE, HOUR];
 
-/** The URL of one market day of the given areas, in NOK. */
-export function spotUrl(date, areas) {
-  const url = new URL(SPOT_URL);
-  url.search = new URLSearchParams({
-    date,
-    market: 'DayAhead',
-    deliveryArea: areas.join(','),
-    currency: 'NOK',
-  }).toString();
-  return url.toString();
+/** The URL of one local day of one area. */
+export function spotUrl(date, area) {
+  if (!AREA_OPTIONS.includes(area) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error('bad spot day');
+  }
+  return `${SPOT_BASE}${date.slice(0, 4)}/${date.slice(5, 7)}-${date.slice(8, 10)}_${area}.json`;
 }
 
-const MAX_SLOTS = 200;
-
 /**
- * A DayAheadPrices answer -> `{ [area]: [[start, end, price NOK/kWh]] }` for
- * the Norwegian areas asked (slots sorted, 15 or 60 minutes long). Entries
- * that are not numbers are left out; an area without any slot is absent.
+ * The answer of one local day -> `[[start, end, price NOK/kWh]]` sorted, or
+ * null when it is not exactly that whole day: every slot of one length (15
+ * or 60 minutes), contiguous from the local midnight to the next one, a
+ * finite NOK price on each.
  */
-export function parseSpotDay(answer, areas) {
-  const out = {};
-  const entries = Array.isArray(answer?.multiAreaEntries) ? answer.multiAreaEntries : [];
-  if (answer && answer.currency !== undefined && answer.currency !== 'NOK') return out;
-  for (const entry of entries.slice(0, MAX_SLOTS)) {
-    const start = Date.parse(entry?.deliveryStart ?? '');
-    const end = Date.parse(entry?.deliveryEnd ?? '');
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-    if (end - start > 60 * 60_000) continue;
-    for (const area of areas) {
-      const perMwh = entry?.entryPerArea?.[area];
-      if (typeof perMwh !== 'number' || !Number.isFinite(perMwh)) continue;
-      if (Math.abs(perMwh) > 100_000) continue;
-      // Two decimals per MWh become five per kWh: round the float noise away.
-      (out[area] ??= []).push([start, end, Math.round(perMwh * 100) / 100_000]);
-    }
+export function parseSpotDay(answer, date) {
+  if (!Array.isArray(answer) || answer.length === 0 || answer.length > MAX_SLOTS) return null;
+  const from = osloMidnight(date);
+  const to = osloMidnight(nextDate(date));
+  if (from === undefined || to === undefined) return null;
+  const slots = [];
+  for (const entry of answer) {
+    const start = parseInstant(entry?.time_start);
+    const end = parseInstant(entry?.time_end);
+    const price = entry?.NOK_per_kWh;
+    if (start === undefined || end === undefined) return null;
+    if (typeof price !== 'number' || !Number.isFinite(price) || Math.abs(price) > 100) return null;
+    slots.push([start, end, Math.round(price * 100_000) / 100_000]);
   }
-  for (const slots of Object.values(out)) slots.sort((a, b) => a[0] - b[0]);
-  return out;
+  slots.sort((a, b) => a[0] - b[0]);
+  const length = slots[0][1] - slots[0][0];
+  if (!SLOT_LENGTHS.includes(length)) return null;
+  let at = from;
+  for (const [start, end] of slots) {
+    if (start !== at || end - start !== length) return null;
+    at = end;
+  }
+  return at === to ? slots : null;
 }
 
 /** The spot cache: `{ [area]: { [date]: { slots, at } } }`, checked when read from /data. */
@@ -65,16 +70,19 @@ export function checkSpotCache(raw) {
     if (!days || typeof days !== 'object') continue;
     for (const [date, day] of Object.entries(days)) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Array.isArray(day?.slots)) continue;
-      const slots = day.slots.filter(
-        (s) =>
-          Array.isArray(s) &&
-          s.length === 3 &&
-          s.every((v) => typeof v === 'number' && Number.isFinite(v)) &&
-          s[1] > s[0],
+      const slots = parseSpotDay(
+        day.slots.map((s) =>
+          Array.isArray(s)
+            ? {
+                time_start: new Date(s[0]).toISOString(),
+                time_end: new Date(s[1]).toISOString(),
+                NOK_per_kWh: s[2],
+              }
+            : null,
+        ),
+        date,
       );
-      if (slots.length > 0 && slots.length <= MAX_SLOTS) {
-        (out[area] ??= {})[date] = { slots, at: Number(day.at) || 0 };
-      }
+      if (slots) (out[area] ??= {})[date] = { slots, at: Number(day.at) || 0 };
     }
   }
   return out;
@@ -99,3 +107,6 @@ export function pruneSpot(cache, today) {
   }
   return cache;
 }
+
+/** The local days of a list of instants ("YYYY-MM-DD"), sorted, distinct. */
+export const daysOf = (instants) => [...new Set(instants.map((ms) => oslo(ms).date))].sort();

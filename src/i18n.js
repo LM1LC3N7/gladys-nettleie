@@ -32,6 +32,18 @@ export const TEXTS = {
     en: ' {service} asks to wait (HTTP {status}): paused until {time}.',
     fr: ' {service} demande d’attendre (HTTP {status}) : pause jusqu’à {time}.',
   },
+  spotCredit: {
+    en: ' Strømpriser levert av Hva koster strømmen.no.',
+    fr: ' Strømpriser levert av Hva koster strømmen.no.',
+  },
+  stale: {
+    en: ' The data of {company} was last checked on {date}: prices not verified this year.',
+    fr: ' Les données de {company} ont été vérifiées pour la dernière fois le {date} : prix non vérifiés cette année.',
+  },
+  zoneMismatch: {
+    en: ' Tax zone "{zone}" does not match the county of {company}: check it.',
+    fr: ' La zone fiscale « {zone} » ne correspond pas au comté de {company} : vérifiez-la.',
+  },
   configUnread: {
     en: 'The configuration could not be read from Gladys: trying again.',
     fr: 'La configuration n’a pas pu être lue depuis Gladys : nouvel essai.',

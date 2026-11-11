@@ -44,8 +44,14 @@ export function readInputs(inputs = {}) {
   if (!ZONE_OPTIONS.includes(zone)) throw new InputError('tax_zone is not a known option');
   const supply = has(raw.supply) ? String(raw.supply) : 'grid_only';
   if (!SUPPLY_OPTIONS.includes(supply)) throw new InputError('supply is not a known option');
-  const area = has(raw.price_area) ? String(raw.price_area) : 'NO1';
-  if (!AREA_OPTIONS.includes(area)) throw new InputError('price_area is not a known option');
+  // No default area: a spot price of the wrong area would be priced unnoticed.
+  const area = has(raw.price_area) ? String(raw.price_area) : null;
+  if (area !== null && !AREA_OPTIONS.includes(area)) {
+    throw new InputError('price_area is not a known option');
+  }
+  if (area === null && supply !== 'grid_only') {
+    throw new InputError('price_area is needed with the spot and norgespris supplies');
+  }
   let markup = 0;
   if (has(raw.supplier_markup)) {
     markup = typeof raw.supplier_markup === 'number' ? raw.supplier_markup : NaN;

@@ -150,12 +150,6 @@
     "to": "false"
   },
   {
-    "name": "a day that failed is not asked again before its wait",
-    "file": "src/app.js",
-    "from": "if (wait !== undefined && this.monotonic() < wait) return false;",
-    "to": "if (false) return false;"
-  },
-  {
     "name": "a paused service is not asked",
     "file": "src/app.js",
     "from": "      if (paused) {\n",
@@ -186,12 +180,6 @@
     "to": "refreshAt"
   },
   {
-    "name": "never a save before /data was read",
-    "file": "src/app.js",
-    "from": "if (!this.loaded[name]) return;",
-    "to": "if (false) return;"
-  },
-  {
     "name": "/data read again on its own timer",
     "file": "src/app.js",
     "from": "this.setTimer('store', STORE_RETRY,",
@@ -208,18 +196,6 @@
     "file": "src/app.js",
     "from": "if (!this.config.refresh_data) return;",
     "to": "if (false) return;"
-  },
-  {
-    "name": "a partial spot day is not kept",
-    "file": "src/app.js",
-    "from": "if (slots.length < 23) continue;",
-    "to": "if (false) continue;"
-  },
-  {
-    "name": "at most 6 spot days per pricing",
-    "file": "src/app.js",
-    "from": "fetches >= SPOT_FETCHES ||",
-    "to": "false ||"
   },
   {
     "name": "NVE asked at most once an hour",
@@ -280,5 +256,173 @@
     "file": "src/app.js",
     "from": "let read = this.storeReads[name];",
     "to": "let read;"
+  },
+  {
+    "name": "17 May dropped",
+    "file": "src/holidays.js",
+    "from": "    `${year}-05-17`, // grunnlovsdag\n",
+    "to": ""
+  },
+  {
+    "name": "Ascension one day late",
+    "file": "src/holidays.js",
+    "from": "fromEaster(39)",
+    "to": "fromEaster(40)"
+  },
+  {
+    "name": "hour span upper bound excluded",
+    "file": "src/tariffs.js",
+    "from": "      hours.add(h);\n      if (h === end) break;",
+    "to": "      if (h === end) break;\n      hours.add(h);"
+  },
+  {
+    "name": "strømstøtte without VAT in the south",
+    "file": "src/pricing.js",
+    "from": "inCap -= SUPPORT.rate * Math.max(0, hourly - threshold) * factor;",
+    "to": "inCap -= SUPPORT.rate * Math.max(0, hourly - threshold);"
+  },
+  {
+    "name": "Norgespris before 1 Oct 2025",
+    "file": "src/rates.js",
+    "from": "if (date < NORGESPRIS.from) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "Enova levy dropped",
+    "file": "src/rates.js",
+    "from": "+ rates.enova) * 1e6",
+    "to": ") * 1e6"
+  },
+  {
+    "name": "month filter of an exception ignored",
+    "file": "src/tariffs.js",
+    "from": "if (ex.months && !ex.months.includes(MONTHS[local.mo - 1])) continue;",
+    "to": ""
+  },
+  {
+    "name": "Norgespris within cap needs the spot",
+    "file": "src/pricing.js",
+    "from": "needOut: outKwh > 0",
+    "to": "needOut: true"
+  },
+  {
+    "name": "pause from /data longer than the max trusted",
+    "file": "src/app.js",
+    "from": "until > this.now() && until <= this.now() + PAUSE_MAX",
+    "to": "until > this.now()"
+  },
+  {
+    "name": "YAML aliases allowed",
+    "file": "src/app.js",
+    "from": "maxAliasCount: 0",
+    "to": "maxAliasCount: 1000"
+  },
+  {
+    "name": "other template priced",
+    "file": "src/app.js",
+    "from": "if (contract?.template_key !== TEMPLATE_KEY) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "unknown month kWh for a cap",
+    "file": "src/pricing.js",
+    "from": "if (cap !== null && !(Number.isFinite(monthBefore) && monthBefore >= 0)) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "capacity VAT by zone",
+    "file": "src/app.js",
+    "from": "step.monthly * (1 + taxesOn(this.catalog.rates(), settings.zone, local.date).vat);",
+    "to": "step.monthly * 1.25;"
+  },
+  {
+    "name": "a spot day is kept only whole",
+    "file": "src/spot.js",
+    "from": "return at === to ? slots : null;",
+    "to": "return slots;"
+  },
+  {
+    "name": "a spot slot without a NOK price is refused",
+    "file": "src/spot.js",
+    "from": "if (typeof price !== 'number' || !Number.isFinite(price) || Math.abs(price) > 100) return null;",
+    "to": "if (false) return null;"
+  },
+  {
+    "name": "a missing spot day is queued for the background",
+    "file": "src/app.js",
+    "from": "          this.wantSpot(\n",
+    "to": "          void (\n"
+  },
+  {
+    "name": "a failed spot day waits before it is asked again",
+    "file": "src/app.js",
+    "from": "      if (wait !== undefined && this.monotonic() < wait) continue;",
+    "to": "      if (false) continue;"
+  },
+  {
+    "name": "at most a month of spot days per ask",
+    "file": "src/app.js",
+    "from": "dates.slice(0, SPOT_DAYS_PER_ASK)",
+    "to": "dates"
+  },
+  {
+    "name": "no refresh while its due time is not written",
+    "file": "src/app.js",
+    "from": "    if (!(await this.save('state'))) {",
+    "to": "    if (!(await this.save('state')) && false) {"
+  },
+  {
+    "name": "NVE compared with the Enova levy",
+    "file": "src/app.js",
+    "from": "energyPrice(tariff, local).ore + enova",
+    "to": "energyPrice(tariff, local).ore"
+  },
+  {
+    "name": "old data warned",
+    "file": "src/app.js",
+    "from": "if (from < yearStart) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "tax zone checked against the county",
+    "file": "src/app.js",
+    "from": "if (county && NORTHERN_COUNTIES.includes(county) === (settings.zone === 'south')) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "no default price area for spot",
+    "file": "src/contract.js",
+    "from": "if (area === null && supply !== 'grid_only') {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "current price with an unknown month",
+    "file": "src/pricing.js",
+    "from": "  if (cap !== null && !(Number.isFinite(monthUsed) && monthUsed >= 0)) {\n    throw",
+    "to": "  if (false) {\n    throw"
+  },
+  {
+    "name": "never a save before /data was read",
+    "file": "src/app.js",
+    "from": "if (!this.loaded[name]) return false;",
+    "to": "if (false) return false;"
+  },
+  {
+    "name": "refresh due time saved before the requests",
+    "file": "src/app.js",
+    "from": "    this.state.refreshAt = this.now() + REFRESH_RETRY;\n    if (!(await this.save('state'))) {",
+    "to": "    this.state.refreshAt = this.now() + REFRESH_RETRY;\n    if (false) {"
+  },
+  {
+    "name": "current price: cap boundary",
+    "file": "src/pricing.js",
+    "from": "monthUsed < cap;",
+    "to": "monthUsed <= cap;"
+  },
+  {
+    "name": "spot re-read every tick",
+    "file": "src/app.js",
+    "from": "      if (this.spot[area]?.[date]) continue;\n      let answer;",
+    "to": "      let answer;"
   }
 ]
