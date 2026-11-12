@@ -14,7 +14,7 @@ real Gladys contract: see the documentation.
   comparison of the Test button; spot prices: Strømpriser levert av Hva koster
   strømmen.no. See
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-- Requires Gladys 5.2.0 or later (energy contracts).
+- Requires Gladys 5.3.0 or later (catalog countries; 5.2.0 for energy contracts).
 
 ## Development
 

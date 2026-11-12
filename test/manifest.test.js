@@ -58,7 +58,7 @@ function* texts(node, path = '') {
 test('the store basics, the version agreeing everywhere, never pinned', () => {
   assert.equal(manifest.manifest_version, 1);
   assert.equal(manifest.type, 'device');
-  assert.equal(manifest.gladys_version, '>=5.2.0', 'energy_contracts need 5.2.0');
+  assert.equal(manifest.gladys_version, '>=5.3.0', 'energy_contracts need 5.2.0');
   const pkg = JSON.parse(read('package.json'));
   const lock = JSON.parse(read('package-lock.json'));
   assert.equal(pkg.name, 'gladys-nettleie');
@@ -75,7 +75,7 @@ test('the store basics, the version agreeing everywhere, never pinned', () => {
   assert.deepEqual(manifest.transports, ['cloud']);
   assert.deepEqual(manifest.categories, ['energy']);
   assert.equal(manifest.keywords, undefined);
-  assert.equal(manifest.countries, undefined);
+  assert.deepEqual(manifest.countries, ['NO']);
   assert.equal(pkg.scripts.test, 'node --test --test-timeout=60000');
   assert.equal(pkg.license, 'Apache-2.0');
   assert.deepEqual(Object.keys(pkg.dependencies).sort(), [

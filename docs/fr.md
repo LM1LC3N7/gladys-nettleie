@@ -13,7 +13,7 @@ Hva koster strømmen.no, ni au projet fri-nettleie.
 ## Ce qu’elle fait
 
 - Un modèle de contrat **« Nettleie (Norvège) »** (tarification déléguée,
-  Gladys 5.2 ou plus récent) : Gladys envoie la consommation de chaque
+  Gladys 5.3 ou plus récent) : Gladys envoie la consommation de chaque
   demi-heure, l’intégration répond son coût en NOK, TVA comprise :
   - la **part énergie** (energiledd) du tarif de votre gestionnaire pour
     l’heure locale, le type de jour (jour ouvré, week-end, jour férié) et le
