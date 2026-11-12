@@ -5,9 +5,9 @@
 - [ ] Review r1 (xhigh: energy).
 - [ ] Turn on "Private vulnerability reporting" (SECURITY.md points there).
 - [ ] Add the `gladys-assistant-integration` topic at publication only.
-- [ ] Store fields not set in the manifest (validator rules): `keywords`
+- [ ] Store field not set in the manifest (validator rules): `keywords`
       (nettleie, kapasitetsledd, strømstøtte, Norgespris, Norway, grid
-      tariff) and `countries` (NO).
+      tariff). The countries are declared (`NO`).
 
 ## To watch
 
@@ -35,7 +35,7 @@
 ## Decisions
 
 - Version 0.1.0 set by hand (package.json, lock, manifest, docker_image).
-- `gladys_version: ">=5.2.0"`: `energy_contracts` (5.2.0), not 5.1.0.
+- `gladys_version: ">=5.3.0"`: `countries` (5.3.0); `energy_contracts` needs 5.2.0.
 - One delegated template (limit 20): the company is an input (77 companies
   in the snapshot, more than the 64 options a select can hold).
 - The capacity step is shown, not billed: the engine cannot express steps

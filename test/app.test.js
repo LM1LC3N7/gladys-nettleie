@@ -4,6 +4,7 @@
 // prices, the daily refresh of fri-nettleie, pauses, /data, the Test button.
 // -----------------------------------------------------------------------------
 
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { stringify } from 'yaml';
@@ -30,6 +31,9 @@ import {
   settle,
   setup,
 } from './helpers/app.js';
+
+// The released version, never written here: the Release workflow bumps it.
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const RAW = 'https://raw.githubusercontent.com/kraftsystemet/fri-nettleie/main/';
 const ELVIA = `${RAW}tariffer/elvia.yml`;
@@ -234,9 +238,9 @@ test('spot: never a wait in the pricing; the days missing read in the background
   const call = net.calls.find((c) => c.url.startsWith(SPOT));
   assert.equal(call.url, `${SPOT}api/v1/prices/2026/11-02_NO1.json`);
   assert.equal(call.headers['User-Agent'], USER_AGENT);
-  assert.match(
+  assert.equal(
     USER_AGENT,
-    /^gladys-nettleie\/0\.1\.0 \(\+https:\/\/github\.com\/LM1LC3N7\/gladys-nettleie\)$/,
+    `gladys-nettleie/${version} (+https://github.com/LM1LC3N7/gladys-nettleie)`,
   );
   // Asked again while the read hangs: still at once, no second request.
   const second = await env.gladys.fake.energyPrice(req());

@@ -12,7 +12,7 @@ or with the fri-nettleie project.
 
 ## What it does
 
-- A contract template **"Nettleie (Norway)"** (delegated pricing, Gladys 5.2
+- A contract template **"Nettleie (Norway)"** (delegated pricing, Gladys 5.3
   or later): Gladys sends the consumption of each half hour, the integration
   answers its cost in NOK, VAT included:
   - the **energy part** (energiledd) of your company's tariff for that local
